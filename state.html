@@ -11,110 +11,105 @@
 <body>
   <div class="header-simple">
     <div class="container header-flex">
-      <button id="backToHome" class="btn"><i class="fa fa-arrow-left"></i> Back</button>
-      <div class="right">
-        <button id="themeToggleState" class="btn icon-btn" title="Toggle theme">
-          <i id="themeIconState" class="fa fa-moon"></i>
-        </button>
+      <div>
+        <button id="backToMap" class="btn"><i class="fa fa-arrow-left"></i> Back to Map</button>
+        <a href="index.html" class="btn">Home</a>
+      </div>
+      <div>
+        <button id="themeToggleState" class="btn icon-btn"><i id="themeIconState" class="fa fa-moon"></i></button>
       </div>
     </div>
   </div>
 
-  <main class="container">
+  <main class="container page">
     <section class="top-block">
-      <div id="stateMap" class="map-card center-map" style="height:360px;"></div>
+      <div class="card map-card">
+        <h3 id="stateMapTitle">State Map</h3>
+        <div id="stateMap" style="height:360px"></div>
+        <div class="small muted" id="stateLatest">Latest: —</div>
+      </div>
 
-      <aside class="meta">
-        <h2 id="stateTitle">State</h2>
+      <aside class="card meta">
+        <h3 id="stateTitle">State</h3>
         <div id="diseaseYearText">Disease · Year</div>
-
         <div class="summary-row">
-          <div class="summary-item">
-            <div style="font-weight:600">Total Cases</div>
-            <div id="stateTotalCases">—</div>
-          </div>
-          <div class="summary-item">
-            <div style="font-weight:600">Population</div>
-            <div id="statePopulation">—</div>
-          </div>
-          <div class="summary-item">
-            <div style="font-weight:600">Population Density</div>
-            <div id="stateDensity">—</div>
-          </div>
-        </div>
-
-        <hr>
-
-        <div>
-          <label>Chart scope</label>
-          <select id="scopeSelect" class="select">
-            <option value="state">This state</option>
-            <option value="compare">Compare diseases</option>
-            <option value="otherstates">Other states</option>
-          </select>
+          <div class="summary-item"><div>Total Cases</div><div id="stateTotalCases">—</div></div>
+          <div class="summary-item"><div>Population</div><div id="statePopulation">—</div></div>
+          <div class="summary-item"><div>Density</div><div id="stateDensity">—</div></div>
         </div>
       </aside>
     </section>
 
     <section class="charts-grid">
-      <!-- Chart A -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <strong>Plot A — Cases vs Population</strong>
-          <select class="chart-option" id="chartA_select">
-            <option value="scatter_year">Scatter by Year</option>
-            <option value="bar_year">Bar by Year</option>
-          </select>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>Plot A — Time series (state)</h3>
+          <div>
+            <label>Norm
+              <select id="chartA_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
+            </label>
+            <label>Axis
+              <select id="chartA_axis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
+            </label>
+          </div>
         </div>
-        <canvas id="chartA" height="220"></canvas>
-        <div class="chart-purpose">Purpose: Evaluate how cases relate to population over time within this state.</div>
+        <div class="chart-wrapper"><canvas id="chartA_stateTS"></canvas></div>
       </div>
 
-      <!-- Chart B -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <strong>Plot B — Cases vs Density (Time)</strong>
-          <select class="chart-option" id="chartB_select">
-            <option value="dual_line">Dual axis time series</option>
-            <option value="area">Cumulative area</option>
-          </select>
-        </div>
-        <canvas id="chartB" height="220"></canvas>
-        <div class="chart-purpose">Purpose: Understand whether density changes align with disease trends.</div>
+      <div class="card">
+        <h3>Plot B — Cases per 100k (state)</h3>
+        <div class="chart-wrapper"><canvas id="chartB_statePer100k"></canvas></div>
       </div>
 
-      <!-- Chart C -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <strong>Plot C — Disease comparison</strong>
-          <select class="chart-option" id="chartC_select">
-            <option value="multi_bar">Multi-year multi-disease</option>
-            <option value="stacked">Stacked by disease</option>
-          </select>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>Plot C — Disease comparison</h3>
+          <div>
+            <label>Diseases
+              <select id="stateDiseaseSelect" class="select" multiple size="3"></select>
+            </label>
+            <label>Norm
+              <select id="chartC_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
+            </label>
+          </div>
         </div>
-        <canvas id="chartC" height="220"></canvas>
-        <div class="chart-purpose">Purpose: Compare the selected disease with others in the same state.</div>
+        <div class="chart-wrapper"><canvas id="chartC_stateCompare"></canvas></div>
       </div>
 
-      <!-- Chart D -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <strong>Plot D — Scatter matrix / comparisons</strong>
-          <select class="chart-option" id="chartD_select">
-            <option value="scatter_density_cases">Density vs Cases</option>
-            <option value="scatter_pop_cases">Population vs Cases</option>
-          </select>
+      <div class="card">
+        <h3>Plot D — Scatter (ad-hoc)</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <label>X <select id="stateScatterX" class="select"><option value="population">Population</option><option value="population_density">Density</option><option value="year">Year</option></select></label>
+          <label>Y <select id="stateScatterY" class="select"><option value="cases">Cases</option><option value="cases_per100k">Cases per 100k</option></select></label>
         </div>
-        <canvas id="chartD" height="220"></canvas>
-        <div class="chart-purpose">Purpose: Explore bivariate relationships using scatter plots for the state.</div>
+        <div class="chart-wrapper"><canvas id="chartD_stateScatter"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Plot E — Sunburst (Year → Disease → Cases)</h3>
+        <div class="chart-wrapper"><canvas id="chartE_stateSunburst"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Plot F — Heatmap (Disease × Year)</h3>
+        <div class="chart-wrapper"><canvas id="chartF_stateHeatmap"></canvas></div>
       </div>
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
 
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- chart plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
+
+  <!-- app -->
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/charts.js"></script>
   <script src="assets/js/state.js"></script>
