@@ -1,4 +1,4 @@
-const DATA_PATH = 'assets/data/usa_disease_data.csv';
+const DATA_PATH = 'assets/data/complete_disease_data.csv';
 document.addEventListener('DOMContentLoaded', ()=>{
   const diseaseSelect = document.getElementById('diseaseSelect');
   const yearSelect = document.getElementById('yearSelect');
