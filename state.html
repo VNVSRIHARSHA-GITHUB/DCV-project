@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>State Dashboard — Disease</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="header-simple">
+    <div class="container header-flex">
+      <button id="backToHome" class="btn"><i class="fa fa-arrow-left"></i> Back</button>
+      <div class="right">
+        <button id="themeToggleState" class="btn icon-btn" title="Toggle theme">
+          <i id="themeIconState" class="fa fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <main class="container">
+    <section class="top-block">
+      <div id="stateMap" class="map-card center-map" style="height:360px;"></div>
+
+      <aside class="meta">
+        <h2 id="stateTitle">State</h2>
+        <div id="diseaseYearText">Disease · Year</div>
+
+        <div class="summary-row">
+          <div class="summary-item">
+            <div style="font-weight:600">Total Cases</div>
+            <div id="stateTotalCases">—</div>
+          </div>
+          <div class="summary-item">
+            <div style="font-weight:600">Population</div>
+            <div id="statePopulation">—</div>
+          </div>
+          <div class="summary-item">
+            <div style="font-weight:600">Population Density</div>
+            <div id="stateDensity">—</div>
+          </div>
+        </div>
+
+        <hr>
+
+        <div>
+          <label>Chart scope</label>
+          <select id="scopeSelect" class="select">
+            <option value="state">This state</option>
+            <option value="compare">Compare diseases</option>
+            <option value="otherstates">Other states</option>
+          </select>
+        </div>
+      </aside>
+    </section>
+
+    <section class="charts-grid">
+      <!-- Chart A -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <strong>Plot A — Cases vs Population</strong>
+          <select class="chart-option" id="chartA_select">
+            <option value="scatter_year">Scatter by Year</option>
+            <option value="bar_year">Bar by Year</option>
+          </select>
+        </div>
+        <canvas id="chartA" height="220"></canvas>
+        <div class="chart-purpose">Purpose: Evaluate how cases relate to population over time within this state.</div>
+      </div>
+
+      <!-- Chart B -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <strong>Plot B — Cases vs Density (Time)</strong>
+          <select class="chart-option" id="chartB_select">
+            <option value="dual_line">Dual axis time series</option>
+            <option value="area">Cumulative area</option>
+          </select>
+        </div>
+        <canvas id="chartB" height="220"></canvas>
+        <div class="chart-purpose">Purpose: Understand whether density changes align with disease trends.</div>
+      </div>
+
+      <!-- Chart C -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <strong>Plot C — Disease comparison</strong>
+          <select class="chart-option" id="chartC_select">
+            <option value="multi_bar">Multi-year multi-disease</option>
+            <option value="stacked">Stacked by disease</option>
+          </select>
+        </div>
+        <canvas id="chartC" height="220"></canvas>
+        <div class="chart-purpose">Purpose: Compare the selected disease with others in the same state.</div>
+      </div>
+
+      <!-- Chart D -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <strong>Plot D — Scatter matrix / comparisons</strong>
+          <select class="chart-option" id="chartD_select">
+            <option value="scatter_density_cases">Density vs Cases</option>
+            <option value="scatter_pop_cases">Population vs Cases</option>
+          </select>
+        </div>
+        <canvas id="chartD" height="220"></canvas>
+        <div class="chart-purpose">Purpose: Explore bivariate relationships using scatter plots for the state.</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script src="assets/js/theme.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/state.js"></script>
+</body>
+</html>
