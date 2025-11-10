@@ -10,10 +10,10 @@
 </head>
 <body>
   <header class="site-header small">
-    <div class="header-inner">
+    <div class="header-inner container">
       <div class="brand">
-        <img src="assets/img/logo.png" alt="logo" class="logo" />
-        <div class="title">
+        <img src="assets/img/logo.png" class="logo" alt="logo">
+        <div>
           <div class="app-title">Public Health Dashboard</div>
           <div class="app-sub">National Map</div>
         </div>
@@ -21,58 +21,124 @@
 
       <div class="controls">
         <button id="homeBtn" class="btn"><i class="fa fa-home"></i> Home</button>
-        <button id="themeToggleMap" class="btn icon-btn" title="Toggle theme">
-          <i id="themeIconMap" class="fa fa-moon"></i>
-        </button>
+        <button id="themeToggleMap" class="btn icon-btn"><i id="themeIconMap" class="fa fa-moon"></i></button>
       </div>
     </div>
   </header>
 
   <main class="container page">
+    <!-- top maps -->
     <section class="map-row">
-      <div id="casesMap" class="map-large"></div>
-      <div id="densityMap" class="map-large"></div>
+      <div class="card map-card">
+        <h3>Choropleth — State cases</h3>
+        <div id="casesMap" style="height:420px;"></div>
+        <div class="small muted" id="mapFooter">Dataset: — · Year: —</div>
+      </div>
+
+      <aside class="card side-panel right">
+        <h4>At a glance</h4>
+        <div id="summaryPanel">Loading...</div>
+      </aside>
     </section>
 
-    <section class="stats-row">
-      <div class="stat card">
-        <div class="stat-title">Total cases (USA)</div>
-        <div id="totalCasesUSA" class="stat-value">—</div>
+    <!-- charts row -->
+    <section class="charts-grid">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <h3>Cases by State — Selected Year</h3>
+          <div>
+            <label>Sort
+              <select id="casesSortSelect" class="select">
+                <option value="cases_desc">Cases ↓</option>
+                <option value="cases_asc">Cases ↑</option>
+                <option value="alpha_asc">A → Z</option>
+                <option value="alpha_desc">Z → A</option>
+                <option value="pop_desc">Population ↓</option>
+                <option value="density_desc">Density ↓</option>
+                <option value="per100k_desc">Per100k ↓</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="chart-wrapper"><canvas id="casesByStateBar"></canvas></div>
       </div>
-      <div class="stat card">
-        <div class="stat-title">Total population</div>
-        <div id="totalPopulationUSA" class="stat-value">—</div>
-      </div>
-      <div class="stat card">
-        <div class="stat-title">Avg population density</div>
-        <div id="avgDensityUSA" class="stat-value">—</div>
-      </div>
-    </section>
 
-    <section class="plots-row">
-      <div class="card plot-card">
-        <h4>Cases vs Population Density</h4>
-        <canvas id="bivarPlot" height="200"></canvas>
-        <div class="chart-purpose">Purpose: To examine whether areas with higher population density have higher case counts.</div>
+      <div class="card">
+        <h3>Histogram — distribution of state counts (4 bins)</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <label>Norm
+            <select id="histNorm" class="select">
+              <option value="absolute">Absolute</option>
+              <option value="per100k">Per 100k</option>
+            </select>
+          </label>
+        </div>
+        <div class="chart-wrapper"><canvas id="casesHistogram"></canvas></div>
       </div>
 
-      <div class="card plot-card">
-        <h4>Time series: National trend</h4>
-        <canvas id="timeSeriesPlot" height="200"></canvas>
-        <div class="chart-purpose">Purpose: Observe how disease cases changed over the years nationwide.</div>
+      <div class="card">
+        <h3>Scatter — Cases vs Population Density</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <label>Color by
+            <select id="scatterColorBy" class="select">
+              <option value="none">None</option>
+              <option value="region">US Region</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="scatterPerCapita"> Per 100k</label>
+        </div>
+        <div class="chart-wrapper"><canvas id="scatterDensityCases"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Multi-disease Time Series — Common years</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <label>Diseases
+            <select id="diseaseMultiSelect" class="select" multiple size="3"></select>
+          </label>
+          <label>Norm
+            <select id="multiNorm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
+          </label>
+        </div>
+        <div class="chart-wrapper"><canvas id="multiDiseaseSeries"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Box plot — Dispersion across states (per year)</h3>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <label>Group by
+            <select id="boxGroup" class="select"><option value="byYear">By year (boxes = distribution across states)</option><option value="byState">By state (boxes = distribution across years)</option></select>
+          </label>
+          <label>Norm
+            <select id="boxNorm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
+          </label>
+          <label>Axis
+            <select id="boxAxis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
+          </label>
+        </div>
+        <div class="chart-wrapper"><canvas id="boxplotCases"></canvas></div>
+      </div>
+
+      <div class="card">
+        <h3>Summary Table</h3>
+        <div id="summaryTableContainer" style="overflow:auto"></div>
       </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <div class="container">© Public Health Dashboard</div>
-  </footer>
+  <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
 
   <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+  <!-- chart plugins -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
+
+  <!-- app scripts -->
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/charts.js"></script>
   <script src="assets/js/map.js"></script>
