@@ -4,65 +4,54 @@
   <meta charset="utf-8" />
   <title>Public Health Dashboard — USA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Fonts & icons -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Leaflet CSS (maps used on other pages) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
   <header class="site-header">
-    <div class="header-inner">
+    <div class="header-inner container">
       <div class="brand">
-        <img src="assets/img/logo.lpg" alt="logo" class="logo" />
-        <div class="title">
+        <img src="assets/img/logo.png" class="logo" alt="logo"/>
+        <div>
           <div class="app-title">Public Health Dashboard</div>
           <div class="app-sub">Interactive maps & state reports</div>
         </div>
       </div>
 
       <div class="controls">
-        <label>Disease
+        <label class="control-inline">Disease
           <select id="diseaseSelect" class="select"></select>
         </label>
-
-        <label>Year
+        <label class="control-inline">Year
           <select id="yearSelect" class="select" disabled></select>
         </label>
-
         <button id="searchBtn" class="btn primary" disabled>Open Map</button>
-
         <button id="openExample" class="btn">Open Example State</button>
-
-        <button id="themeToggleHeader" class="btn icon-btn" title="Toggle theme">
-          <i id="themeIconHeader" class="fa fa-moon"></i>
-        </button>
+        <button id="themeToggleHeader" class="btn icon-btn" title="Toggle theme"><i id="themeIconHeader" class="fa fa-moon"></i></button>
       </div>
     </div>
 
-    <div class="header-hero" id="headerHero">
-      <div class="hero-text">
+    <div class="header-hero">
+      <div class="container hero-text">
         <h1>Health Analytics Across USA & Territories</h1>
         <p>Interactive state maps • Year-by-year trends • Public health resources</p>
-        <a href="map.html" id="viewMapBtn" class="btn ghost">View National Map</a>
+        <a href="map.html" class="btn ghost">View National Map</a>
       </div>
     </div>
   </header>
 
-  <main class="page container">
+  <main class="container page">
     <section class="cards">
       <article class="card">
         <h3>About U.S. Population</h3>
-        <p>
-          Use the controls in the header to pick a disease and year. Click "Open Map" to explore choropleth maps and state detail pages.
-        </p>
+        <p>Use the controls in the header to pick a disease and year. Click "Open Map" to explore choropleth maps and state detail pages.</p>
       </article>
 
       <article class="card">
         <h3>Data sources</h3>
         <ul>
-          <li>CDC data, public health sites, or your compiled CSV.</li>
+          <li>CDC WONDER and other public health datasets.</li>
         </ul>
       </article>
     </section>
@@ -72,12 +61,9 @@
     <div class="container">© Public Health Dashboard</div>
   </footer>
 
-  <!-- Scripts: Chart.js not required on index, but we include core libs used elsewhere -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/main.js"></script>
 </body>
 </html>
+
