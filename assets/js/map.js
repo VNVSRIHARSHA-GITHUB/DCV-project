@@ -1,5 +1,5 @@
 // map.js
-const DATA_PATH = 'assets/data/usa_disease_data.csv';
+const DATA_PATH = 'assets/data/complete_disease_data.csv';
 const GEOJSON_PATH = 'usa_states.geojson';
 
 let casesMap, densityMap, geojsonData;
