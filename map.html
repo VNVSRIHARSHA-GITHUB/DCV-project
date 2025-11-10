@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>National Map — Disease Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="site-header small">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="assets/img/logo.png" alt="logo" class="logo" />
+        <div class="title">
+          <div class="app-title">Public Health Dashboard</div>
+          <div class="app-sub">National Map</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="homeBtn" class="btn"><i class="fa fa-home"></i> Home</button>
+        <button id="themeToggleMap" class="btn icon-btn" title="Toggle theme">
+          <i id="themeIconMap" class="fa fa-moon"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container page">
+    <section class="map-row">
+      <div id="casesMap" class="map-large"></div>
+      <div id="densityMap" class="map-large"></div>
+    </section>
+
+    <section class="stats-row">
+      <div class="stat card">
+        <div class="stat-title">Total cases (USA)</div>
+        <div id="totalCasesUSA" class="stat-value">—</div>
+      </div>
+      <div class="stat card">
+        <div class="stat-title">Total population</div>
+        <div id="totalPopulationUSA" class="stat-value">—</div>
+      </div>
+      <div class="stat card">
+        <div class="stat-title">Avg population density</div>
+        <div id="avgDensityUSA" class="stat-value">—</div>
+      </div>
+    </section>
+
+    <section class="plots-row">
+      <div class="card plot-card">
+        <h4>Cases vs Population Density</h4>
+        <canvas id="bivarPlot" height="200"></canvas>
+        <div class="chart-purpose">Purpose: To examine whether areas with higher population density have higher case counts.</div>
+      </div>
+
+      <div class="card plot-card">
+        <h4>Time series: National trend</h4>
+        <canvas id="timeSeriesPlot" height="200"></canvas>
+        <div class="chart-purpose">Purpose: Observe how disease cases changed over the years nationwide.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">© Public Health Dashboard</div>
+  </footer>
+
+  <!-- libs -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script src="assets/js/theme.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/map.js"></script>
+</body>
+</html>
