@@ -1,0 +1,9 @@
+state,year,cases,disease,population,population_density
+California,2010,1500,HIV,37253956,241.7
+California,2011,1620,HIV,37300000,241.7
+Texas,2010,900,HIV,25145561,96.3
+Texas,2011,1100,HIV,25200000,96.3
+Florida,2010,800,HIV,18801310,353.4
+New York,2010,1300,HIV,19378102,416.0
+California,2010,500,Diabetes,37253956,241.7
+Texas,2010,300,Diabetes,25145561,96.3
