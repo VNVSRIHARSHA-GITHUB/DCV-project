@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
@@ -16,7 +17,7 @@
         <a href="index.html" class="btn">Home</a>
       </div>
       <div>
-        <button id="themeToggleState" class="btn icon-btn"><i id="themeIconState">🌙</i></button>
+        <button id="themeToggleState" class="btn icon-btn" title="Toggle theme"><i id="themeIconState">🌙</i></button>
       </div>
     </div>
   </div>
@@ -31,38 +32,77 @@
 
       <aside class="card meta">
         <h3 id="stateTitle">State</h3>
-        <div id="diseaseYearText">Disease · Year</div>
-        <div class="summary-row">
-          <div class="summary-item"><div>Total Cases</div><div id="stateTotalCases">—</div></div>
-          <div class="summary-item"><div>Population</div><div id="statePopulation">—</div></div>
-          <div class="summary-item"><div>Density</div><div id="stateDensity">—</div></div>
+        <div id="diseaseYearMeta"></div>
+
+        <div id="diseaseStats" class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-value" id="totalCases">—</span>
+            <span class="stat-label">Total Cases</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="rate100k">—</span>
+            <span class="stat-label">Rate / 100k</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value" id="populationTotal">—</span>
+            <span class="stat-label">Population</span>
+          </div>
         </div>
+        <p class="small muted mt-4">Data is aggregated for the selected year and state.</p>
       </aside>
     </section>
+    
+    <!-- NEW SECTION FOR RESOURCE SUMMARIZER -->
+    <section class="resource-summary-block">
+      <div class="card">
+        <h3>Public Health Resource Summarizer</h3>
+        <p class="small muted">Uses the Gemini API with Google Search grounding to provide a summary of public health resources for the selected disease, state, and year.</p>
+        
+        <div id="summaryOutput" class="mt-4">
+          <!-- Summary content will be loaded here -->
+          <div id="summaryLoading" style="display:none; text-align:center; padding: 20px;">
+            <i class="fa fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2">Generating summary...</p>
+          </div>
+          <div id="summaryText">
+            <p class="muted">Click **'Generate Summary'** to get relevant public health information.</p>
+          </div>
+          <div id="summaryError" style="color:var(--accent); display:none; padding:10px; border:1px solid var(--accent); border-radius:8px; margin-top:12px;"></div>
+        </div>
+        
+        <button id="generateSummaryBtn" class="btn primary mt-4"><i class="fa fa-search"></i> Generate Summary</button>
+
+        <div id="citations" class="small mt-4" style="display:none;">
+          <h4>Sources & Citations:</h4>
+          <ul id="citationsList" class="list-disc ml-4">
+            <!-- Citations will be listed here -->
+          </ul>
+        </div>
+
+      </div>
+    </section>
+    <!-- END NEW SECTION -->
 
     <section class="charts-grid">
       <div class="card">
-        <h3>Plot A — Time Series</h3>
-        <select id="chartA_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
-        <select id="chartA_axis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
-        <div class="chart-wrapper"><canvas id="chartA_stateTS"></canvas></div>
+        <h3>Plot A — Annual Trends (Cases)</h3>
+        <label>Group by<select id="lineGroup" class="select"><option value="state">By State</option><option value="disease">By Disease</option></select></label>
+        <div class="chart-wrapper"><canvas id="chartA_stateLine"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot B — Cases per 100k</h3>
-        <div class="chart-wrapper"><canvas id="chartB_statePer100k"></canvas></div>
+        <h3>Plot B — Disease Comparison (Bar)</h3>
+        <div class="chart-wrapper"><canvas id="chartB_stateBar"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot C — Disease Comparison</h3>
-        <select id="stateDiseaseSelect" class="select" multiple size="3"></select>
-        <div class="chart-wrapper"><canvas id="chartC_stateCompare"></canvas></div>
+        <h3>Plot C — Cases by Year (Bar)</h3>
+        <div class="chart-wrapper"><canvas id="chartC_stateBar2"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot D — Scatter</h3>
-        <select id="stateScatterX" class="select"><option value="population">Population</option><option value="population_density">Density</option><option value="year">Year</option></select>
-        <select id="stateScatterY" class="select"><option value="cases">Cases</option><option value="cases_per100k">Cases per 100k</option></select>
+        <h3>Plot D — Scatter Plot (Rate vs. Population Density)</h3>
+        <select id="scatterYAxis" class="select"><option value="cases">Cases</option><option value="per100k">Per 100k</option></select>
         <div class="chart-wrapper"><canvas id="chartD_stateScatter"></canvas></div>
       </div>
 
@@ -92,10 +132,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
 
-  <!-- app scripts (helpers first, then state.js) -->
-  <script src="assets/js/theme.js"></script>
-  <script src="assets/js/charts.js"></script>
-  <script src="assets/js/state.js"></script>
-
+  <!-- Local Scripts -->
+  <script src="charts.js"></script>
+  <script src="theme.js"></script>
+  <script src="state.js"></script>
 </body>
 </html>
