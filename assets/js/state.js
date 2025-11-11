@@ -2,7 +2,7 @@
 // State page script — robust loading, normalization, graceful failures and helpful console messages.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
-const GEOJSON_PATH = 'usa_states.geojson';
+const GEOJSON_PATH = 'assets/data/usa_states.geojson'; // <-- confirm this path is where your us states geojson is
 
 // read query params
 function qParam(name){ const p = new URLSearchParams(location.search); return p.get(name); }
@@ -75,7 +75,7 @@ async function fetchGeo(path){
 
 async function init(){
   try{
-    // check required DOM elements exist
+    // check required DOM elements exist (non-blocking)
     const required = ['stateMap','stateTitle','diseaseYearText','stateTotalCases','statePopulation','stateDensity','chartA_stateTS','chartB_statePer100k','chartC_stateCompare','chartD_stateScatter','chartE_stateSunburst','chartF_stateHeatmap','backToMap'];
     const missing = required.filter(id => !el(id));
     if(missing.length){
@@ -154,6 +154,8 @@ async function init(){
       }
     }catch(err){
       console.warn('GeoJSON load failed:', err);
+      // If geojson fails, don't block the page — show message
+      showPageMessage('Could not load state geometry; map may not display. Check GEOJSON_PATH and console.');
     }
 
     // draw charts (defensive: only if canvas exists)
@@ -278,6 +280,7 @@ function drawStateScatter(allRows, Qobj){
     window.chartD = new Chart(canvas.getContext('2d'), { type:'scatter', data:{ datasets:[{ label:'Points', data: pts, backgroundColor:'rgba(95,220,200,0.9)' }]}, options:{ maintainAspectRatio:false, scales:{ x:{ title:{ display:true, text: x }}, y:{ title:{ display:true, text: ySel }}} }});
   }catch(e){ console.error('drawStateScatter failed', e); }
 }
+
 function drawSunburst(allRows, Qobj){
   try{
     const canvas = document.getElementById('chartE_stateSunburst');
@@ -318,7 +321,6 @@ function drawSunburst(allRows, Qobj){
   }catch(e){ console.error('drawSunburst failed', e); }
 }
 
-
 function drawHeatmap(allRows, Qobj){
   try{
     const canvas = document.getElementById('chartF_stateHeatmap');
@@ -352,10 +354,10 @@ function drawHeatmap(allRows, Qobj){
         });
         tbody.appendChild(tr);
       });
-      // clear canvas and insert table
-      canvas.style.display = 'none';
+      // clear previous fallback and insert table
       const existing = container.querySelector('.heatmap-fallback');
       if(existing) existing.remove();
+      canvas.style.display = 'none';
       const wrap = document.createElement('div');
       wrap.className = 'heatmap-fallback';
       wrap.appendChild(table);
@@ -380,6 +382,10 @@ function drawHeatmap(allRows, Qobj){
     });
   }catch(e){ console.error('drawHeatmap failed', e); }
 }
+
+// init on DOM ready
+document.addEventListener('DOMContentLoaded', function(){ init(); });
+
 
 
 
