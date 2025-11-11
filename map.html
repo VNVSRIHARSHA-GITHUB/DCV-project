@@ -2,103 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>National Map — Disease Dashboard</title>
+  <title>Public Health Dashboard — Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css" />
+
+  <!-- CSS -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    /* Minimal layout for demo */
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; padding:0; }
+    #page { display:flex; gap:16px; padding:12px; }
+    #map { height: 640px; width: 65%; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    #side { width: 33%; display:flex; flex-direction:column; gap:12px; }
+    .card { background:#fff; padding:12px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+    .small { font-size:0.9rem; color:#444; }
+    label.control-inline { display:inline-flex; gap:8px; align-items:center; }
+    canvas { width:100% !important; height:240px !important; }
+  </style>
 </head>
 <body>
-  <header class="site-header small">
-    <div class="header-inner container">
-      <div class="brand">
-        <img src="https://placehold.co/40x40/1f7fe0/ffffff?text=PH" class="logo" alt="Public Health logo">
-        <div>
-          <div class="app-title">Public Health Dashboard</div>
-          <div class="app-sub">National Map: <span id="currentDisease">—</span> (<span id="currentYear">—</span>)</div>
+  <div id="page">
+    <div id="map" class="card" aria-label="US choropleth map"></div>
+
+    <div id="side">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0;">Choropleth controls</h3>
+          <div class="small">No red — blue→green→violet</div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="control-inline">
+            Value column:
+            <select id="choroplethValueKey">
+              <option value="Cases">Cases</option>
+              <option value="Rate">Rate</option>
+              <option value="Incidence">Incidence</option>
+            </select>
+          </label>
+          <label class="control-inline" style="margin-left:12px;">
+            Year:
+            <select id="choroplethYear"></select>
+          </label>
         </div>
       </div>
-      <div class="controls">
-        <button id="homeBtn" class="btn"><i class="fa fa-home"></i> Home</button>
-        <button id="themeToggleMap" class="btn icon-btn" title="Toggle theme"><i id="themeIconMap">🌙</i></button>
+
+      <div class="card">
+        <h4 style="margin:0 0 8px 0;">Box plot grouping</h4>
+        <label class="control-inline small"> 
+          Group:
+          <select id="boxGroup" class="select">
+            <option value="byYear">By Year</option>
+            <option value="byState">By State</option>
+            <option value="byDisease">By Disease</option>
+          </select>
+        </label>
+        <div style="margin-top:12px;">
+          <canvas id="boxplotCanvas"></canvas>
+        </div>
       </div>
+
+      <div class="card small" id="diagnostics"></div>
     </div>
-  </header>
+  </div>
 
-  <main class="container page">
-    <section class="two-map-row">
-      <div class="map-container-grid">
-        <div class="card map-card map-col">
-          <h3>Choropleth 1 — Total Cases</h3>
-          <p class="small muted">Shows the raw burden of the disease. (Click state to drill down)</p>
-          <div class="map-wrapper">
-            <div id="casesMap" class="leaflet-container"></div>
-          </div>
-          <div class="small muted" id="casesLegend">Loading Cases legend...</div>
-        </div>
-
-        <div class="card map-card map-col">
-          <h3>Choropleth 2 — Rate per 100k</h3>
-          <p class="small muted">Shows the risk relative to population size. (Click state to drill down)</p>
-          <div class="map-wrapper">
-            <div id="rateMap" class="leaflet-container"></div>
-          </div>
-          <div class="small muted" id="rateLegend">Loading Rate legend...</div>
-        </div>
-      </div>
-
-      <aside class="card side-panel">
-        <h3><i class="fa fa-table"></i> Summary Statistics (<span id="summaryYear">—</span>)</h3>
-        <p class="small muted">Key metrics for the selected year and disease.</p>
-        <div id="summaryTableContainer" style="margin-bottom: 20px;">
-          </div>
-
-        <h3><i class="fa fa-info-circle"></i> Quick Guide</h3>
-        <ul class="small muted">
-          <li>**Total Cases** map uses a blue gradient.</li>
-          <li>**Rate per 100k** map uses a red gradient.</li>
-          <li>Hover over any state for quick stats.</li>
-          <li>**Click a state on either map** to view its detailed report.</li>
-        </ul>
-      </aside>
-    </section>
-
-    <section class="charts-grid">
-      <div class="card">
-        <h3>Plot A — National Cases Trend (All Years)</h3>
-        <p class="small muted">Historical trend for the selected disease across the entire US.</p>
-        <div class="chart-wrapper"><canvas id="lineChartTotalCases"></canvas></div>
-      </div>
-
-      <div class="card">
-        <h3>Plot B — Top/Bottom 5 States (Current Year Cases)</h3>
-        <p class="small muted">Ranks states by the highest and lowest case counts for the selected year.</p>
-        <div class="chart-wrapper"><canvas id="barChartTopStates"></canvas></div>
-      </div>
-
-    
-
-      <div class="card">
-        <h3>Plot C — Rate vs. Population Density (Scatter)</h3>
-        <p class="small muted">Analyzes the relationship between case rates and population density.</p>
-        <div class="chart-wrapper"><canvas id="scatterDensity"></canvas></div>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leaflet.sync@0.2.4/L.Map.Sync.min.js"></script>
-
+  <!-- Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
-  
-  <script src="assets/js/main.js"></script> <script src="assets/js/theme.js"></script>
-  <script src="assets/js/charts.js"></script>
+  <!-- App scripts (order matters) -->
+  <script src="assets/js/main.js"></script>
   <script src="assets/js/map.js"></script>
 </body>
 </html>
+
