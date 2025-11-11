@@ -1,7 +1,6 @@
-// state.js (replacement)
-// - Robust column handling (same strategy as map.js)
-// - Use cached window.__PHdata when present
-// - Ensure controls actually redraw charts and multi-select supports multiple selections
+// assets/js/state.js
+// State page script — robust column handling, uses cached window.__PHdata when available.
+// Draws state map and all state-level charts.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
 const GEOJSON_PATH = 'usa_states.geojson';
@@ -10,17 +9,17 @@ let q = (new URLSearchParams(location.search));
 q = { state: q.get('state') || 'California', disease: q.get('disease') || null, year: q.get('year') || null };
 
 function _pick(obj, keys){
-  for(const k of keys) if(obj[k] !== undefined) return obj[k];
+  for(const k of keys) if(obj && (obj[k] !== undefined)) return obj[k];
   return undefined;
 }
 function normaliseRow(r){
   return {
-    state: _pick(r, ['state','State','STATE','location','province']) || '',
-    year: _pick(r, ['year','Year','YEAR']) || '',
-    disease: _pick(r, ['disease','Disease','condition']) || '',
-    cases: Number(_pick(r, ['cases','Cases','value','count']) || 0),
-    population: Number(_pick(r, ['population','Population','pop']) || 0),
-    population_density: Number(_pick(r, ['population_density','population density','density','pop_density']) || 0)
+    state: _pick(r, ['state','State','STATE','location','Location','province']) || '',
+    year: _pick(r, ['year','Year','YEAR','yr']) || '',
+    disease: _pick(r, ['disease','Disease','condition','Condition']) || '',
+    cases: Number(_pick(r, ['cases','Cases','value','count','Count']) || 0),
+    population: Number(_pick(r, ['population','Population','pop','Pop']) || 0),
+    population_density: Number(_pick(r, ['population_density','population density','density','pop_density','pop density']) || 0)
   };
 }
 
@@ -30,8 +29,8 @@ async function init(){
   document.getElementById('backToMap').addEventListener('click', ()=> location.href = `map.html?disease=${encodeURIComponent(q.disease||'')}&year=${encodeURIComponent(q.year||'')}`);
 
   // use cached dataset if available
-  const all = window.__PHdata ? window.__PHdata : (await new Promise(res=> Papa.parse(DATA_PATH,{download:true,header:true,complete(r)=>res(r.data)})));
-  window.stateAll = (all||[]).map(normaliseRow).filter(r=> r.state);
+  const allRaw = window.__PHdata ? window.__PHdata : (await new Promise(res=> Papa.parse(DATA_PATH,{download:true,header:true,complete(r)=>res(r.data)})));
+  window.stateAll = (allRaw||[]).map(normaliseRow).filter(r=> r.state);
 
   const stateFiltered = window.stateAll.filter(r=> (!q.disease || r.disease===q.disease) && (!q.year || String(r.year)===String(q.year)));
   document.getElementById('stateTitle').innerText = q.state;
@@ -43,6 +42,7 @@ async function init(){
   document.getElementById('statePopulation').innerText = formatN(pop);
   document.getElementById('stateDensity').innerText = dens;
 
+  // load geo and draw state polygon
   const geo = await fetch(GEOJSON_PATH).then(r=>r.json());
   const feat = geo.features.find(f => (f.properties.name || f.properties.NAME) === q.state);
   const center = feat ? getFeatureCenter(feat) : [37.8,-96];
@@ -50,6 +50,7 @@ async function init(){
   if(feat) L.geoJSON(feat, {style:{fillColor:'#7fe3a3', fillOpacity:0.5, color:'#fff'}}).addTo(stateMap);
   document.getElementById('stateLatest').innerText = `Latest (${q.year||'all'}): ${formatN(totalCases)} cases`;
 
+  // draw charts
   drawStateTimeSeries();
   drawStatePer100k();
   drawStateCompare();
@@ -57,12 +58,19 @@ async function init(){
   drawSunburst();
   drawHeatmap();
 
-  // controls
-  document.getElementById('chartA_norm').addEventListener('change', drawStateTimeSeries);
-  document.getElementById('chartA_axis').addEventListener('change', drawStateTimeSeries);
-  document.getElementById('stateDiseaseSelect').addEventListener('change', drawStateCompare);
-  document.getElementById('stateScatterX').addEventListener('change', drawStateScatter);
-  document.getElementById('stateScatterY').addEventListener('change', drawStateScatter);
+  // wire controls
+  const normA = document.getElementById('chartA_norm');
+  const axisA = document.getElementById('chartA_axis');
+  if(normA) normA.addEventListener('change', drawStateTimeSeries);
+  if(axisA) axisA.addEventListener('change', drawStateTimeSeries);
+
+  const diseaseSel = document.getElementById('stateDiseaseSelect');
+  if(diseaseSel) diseaseSel.addEventListener('change', drawStateCompare);
+
+  const scatterX = document.getElementById('stateScatterX');
+  const scatterY = document.getElementById('stateScatterY');
+  if(scatterX) scatterX.addEventListener('change', drawStateScatter);
+  if(scatterY) scatterY.addEventListener('change', drawStateScatter);
 }
 
 function getFeatureCenter(feature){
@@ -73,8 +81,8 @@ function getFeatureCenter(feature){
 }
 
 function drawStateTimeSeries(){
-  const norm = document.getElementById('chartA_norm').value;
-  const axis = document.getElementById('chartA_axis').value;
+  const norm = (document.getElementById('chartA_norm') || {}).value || 'absolute';
+  const axis = (document.getElementById('chartA_axis') || {}).value || 'linear';
   const years = Array.from(new Set(window.stateAll.map(r=>r.year))).sort();
   const values = years.map(y => window.stateAll.filter(r=> r.year===y && (!q.disease || r.disease===q.disease)).reduce((s,r)=> s + (Number(r.cases)||0),0));
   const pop = window.stateAll.length ? Number(window.stateAll[0].population)||1 : 1;
@@ -95,10 +103,12 @@ function drawStatePer100k(){
 }
 
 function drawStateCompare(){
+  // fill disease selector
   const diseases = Array.from(new Set(window.stateAll.map(r=>r.disease))).sort();
   const sel = document.getElementById('stateDiseaseSelect');
+  if(!sel) return;
   sel.innerHTML = diseases.map(d=>`<option value="${d}">${d}</option>`).join('');
-  // keep selections persistent if some were previously selected
+  // preserve selections if any were pre-selected
   const selected = Array.from(sel.selectedOptions).map(o=>o.value) || diseases.slice(0,3);
   const years = Array.from(new Set(window.stateAll.map(r=>r.year))).sort();
   const datasets = selected.map((d,i)=> {
@@ -111,8 +121,8 @@ function drawStateCompare(){
 }
 
 function drawStateScatter(){
-  const x = document.getElementById('stateScatterX').value;
-  const y = document.getElementById('stateScatterY').value;
+  const x = (document.getElementById('stateScatterX') || {}).value || 'population';
+  const y = (document.getElementById('stateScatterY') || {}).value || 'cases';
   const points = window.stateAll.map(r=>{
     const pop = Number(r.population)||0;
     return { x: x === 'population' ? pop : x === 'population_density' ? Number(r.population_density)||0 : Number(r.year)||0,
@@ -152,5 +162,6 @@ function drawHeatmap(){
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
 
 
