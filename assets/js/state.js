@@ -2,7 +2,7 @@
 // State page script — robust loading, normalization, graceful failures and helpful console messages.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
-const GEOJSON_PATH = 'assets/data/usa_states.geojson'; // <-- confirm this path is where your us states geojson is
+const GEOJSON_PATH = 'usa_states.geojson'; // <-- confirm this path is where your us states geojson is
 
 // read query params
 function qParam(name){ const p = new URLSearchParams(location.search); return p.get(name); }
