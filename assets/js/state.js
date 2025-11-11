@@ -1,631 +1,435 @@
-// assets/js/state.js (defensive rewrite)
-// State page script — robust loading, normalization, graceful failures and helpful console messages.
-// Includes logic for the Public Health Resource Summarizer using the Gemini API.
+// assets/js/state.js
+// State page script — robust loading, normalization, and chart generation using ChartHelpers.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
-const GEOJSON_PATH = 'usa_states.geojson'; // <-- confirm this path is where your us states geojson is
+const GEOJSON_PATH = 'usa_states.geojson'; 
 
-// read query params
-function qParam(name){ const p = new URLSearchParams(location.search); return p.get(name); }
-const Q = { state: qParam('state') || 'California', disease: qParam('disease') || null, year: qParam('year') || null };
+// --- Global Chart Instances for Destruction ---
+let chartA, chartB, chartC, chartD, chartE, chartF, stateMapInstance;
 
-// Global elements for the summarizer feature
-const summaryBtn = document.getElementById('generateSummaryBtn');
-const summaryLoading = document.getElementById('summaryLoading');
-const summaryText = document.getElementById('summaryText');
-const summaryError = document.getElementById('summaryError');
-const citationsList = document.getElementById('citationsList');
-const citationsContainer = document.getElementById('citations');
-
-// tolerant pick helper
-function _pick(obj, keys){
-  if(!obj) return undefined;
-  for(const k of keys) if(Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined) return obj[k];
-  // try case-insensitive fallback
-  const lower = Object.keys(obj).reduce((acc, key)=> (acc[key.toLowerCase()] = obj[key], acc), {});
-  for(const k of keys){
-    const low = k.toLowerCase();
-    if(lower[low] !== undefined) return lower[low];
-  }
-  return undefined;
+// --- Query Parameters and Helper Functions ---
+function qParam(name){ 
+  const p = new URLSearchParams(location.search); 
+  return p.get(name); 
 }
 
-function normaliseRow(r){
-  return {
-    state: _pick(r, ['state','State','STATE','location','Location','province','Province']) || '',
-    year: String(_pick(r, ['year','Year','YEAR','yr','YearInt']) || '').trim(),
-    disease: _pick(r, ['disease','Disease','condition','Condition','illness']) || '',
-    cases: Number(_pick(r, ['cases','Cases','value','count','Count']) || 0),
-    population: Number(_pick(r, ['population','Population','pop','Pop']) || 0),
-    population_density: Number(_pick(r, ['population_density','population density','density','pop_density','Density']) || 0),
-    per100k: (Number(_pick(r, ['cases','Cases','value','count','Count']) || 0) / Math.max(1, Number(_pick(r, ['population','Population','pop','Pop']) || 0))) * 100000
-  };
+const Q = { 
+  state: qParam('state') || 'California', 
+  disease: qParam('disease') || null, 
+  year: qParam('year') || null 
+};
+
+// Use helper functions from main.js if available, or define fallbacks
+const _pick = window._pick || function(obj, keys) {
+  for (const k of keys) if (obj[k] !== undefined) return obj[k]; return undefined;
+};
+const normaliseRow = window.normaliseRow || function(r) { return r; }; // Fallback
+const uniqueSorted = window.uniqueSorted || function(arr) { return [...new Set(arr)].sort(); };
+const formatNum = (n, dec=0) => new Intl.NumberFormat('en-US', {maximumFractionDigits: dec}).format(n);
+
+function destroyChart(chartInstance) {
+  if(chartInstance) try{ chartInstance.destroy(); }catch(e){}
 }
 
-function formatNum(n) {
-  if (n === null || n === undefined) return '—';
-  if (typeof n !== 'number') n = Number(n);
-  return n.toLocaleString('en-US');
-}
+// --- Chart Generation Functions ---
 
-
-// --- GEMINI API INTEGRATION START ---
-
-/**
- * Sets the UI state for the summarizer card (loading, error, or ready).
- * @param {('loading'|'ready'|'error')} state
- * @param {string} [message=''] - Error message or initial ready text.
- */
-function setSummaryState(state, message = '') {
-    summaryBtn.disabled = (state === 'loading');
-    summaryLoading.style.display = (state === 'loading') ? 'block' : 'none';
-    summaryError.style.display = (state === 'error') ? 'block' : 'none';
+// Plot A: Annual Cases Trend (Time Series)
+function drawStateTrend(allRows) {
+    if (typeof ChartHelpers === 'undefined') { console.error('ChartHelpers not loaded. Skipping chart A.'); return; }
+    const data = allRows
+        .filter(r => r.state === Q.state && r.disease === Q.disease)
+        .sort((a, b) => Number(a.year) - Number(b.year));
     
-    if (state === 'error') {
-        summaryError.textContent = message;
-        summaryText.style.display = 'none';
-        citationsContainer.style.display = 'none';
-    } else {
-        summaryError.textContent = '';
-        summaryText.style.display = 'block';
-    }
+    const labels = data.map(r => r.year);
+    const cases = data.map(r => r.cases);
+    const rates = data.map(r => r.population > 0 ? (r.cases / r.population) * 100000 : 0);
 
-    if (state === 'ready') {
-        if (!message) {
-             // If ready but no message, show default text
-             summaryText.innerHTML = '<p class="muted">Click **\'Generate Summary\'** to get relevant public health information.</p>';
-        }
-    }
-}
+    const ctx = document.getElementById('chartA_stateTrend').getContext('2d');
+    destroyChart(chartA);
 
-/**
- * Handles the API call to Gemini with Google Search grounding and exponential backoff.
- * @param {string} userQuery - The main query text.
- * @param {string} systemPrompt - Instructions for the model's persona and output.
- * @returns {Promise<{text: string, sources: Array<{uri: string, title: string}>}>}
- */
-async function callGeminiAPI(userQuery, systemPrompt) {
-    const apiKey = "";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-    
-    const payload = {
-        contents: [{ parts: [{ text: userQuery }] }],
-        tools: [{ "google_search": {} }],
-        systemInstruction: {
-            parts: [{ text: systemPrompt }]
+    chartA = ChartHelpers.createLine(ctx, labels, [
+        {
+            label: 'Total Cases',
+            data: cases,
+            yAxisID: 'y1',
+            borderColor: ChartHelpers.getColor(0),
+            backgroundColor: ChartHelpers.getColor(0).replace('1)', '0.2'),
+            tension: 0.3,
+            fill: true,
         },
-    };
-
-    let response;
-    let delay = 1000;
-    const maxRetries = 3;
-
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
-            if (response.status === 429 && i < maxRetries - 1) {
-                // Rate limit hit, wait and retry
-                await new Promise(resolve => setTimeout(resolve, delay));
-                delay *= 2; // Exponential backoff
-                continue; // Skip processing and retry
-            }
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const result = await response.json();
-            const candidate = result.candidates?.[0];
-
-            if (candidate && candidate.content?.parts?.[0]?.text) {
-                const text = candidate.content.parts[0].text;
-                let sources = [];
-                const groundingMetadata = candidate.groundingMetadata;
-                if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                    sources = groundingMetadata.groundingAttributions
-                        .map(attribution => ({
-                            uri: attribution.web?.uri,
-                            title: attribution.web?.title,
-                        }))
-                        .filter(source => source.uri && source.title);
-                }
-                return { text, sources };
-            } else {
-                throw new Error("API response was empty or malformed.");
-            }
-
-        } catch (e) {
-            console.error("Gemini API call failed:", e);
-            if (i === maxRetries - 1) {
-                throw new Error("Failed to get response after multiple retries.");
-            }
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
+        {
+            label: 'Rate / 100k',
+            data: rates,
+            yAxisID: 'y2',
+            borderColor: ChartHelpers.getColor(1),
+            backgroundColor: 'transparent',
+            tension: 0.3,
+            pointStyle: 'circle',
+            pointRadius: 4,
         }
+    ], {
+        scales: {
+            y1: { type: 'linear', position: 'left', title: { display: true, text: 'Cases' } },
+            y2: { type: 'linear', position: 'right', title: { display: true, text: 'Rate / 100k' }, grid: { drawOnChartArea: false } }
+        },
+        plugins: { 
+            legend: { position: 'bottom' },
+            tooltip: { mode: 'index', intersect: false }
+        }
+    });
+}
+
+// Plot B: State Rate vs. National Average
+function drawStateNationalComparison(allRows) {
+    if (typeof ChartHelpers === 'undefined') { console.error('ChartHelpers not loaded. Skipping chart B.'); return; }
+    
+    const stateData = allRows
+        .filter(r => r.state === Q.state && r.disease === Q.disease)
+        .map(r => ({ year: r.year, rate: r.population > 0 ? (r.cases / r.population) * 100000 : 0 }));
+
+    // Calculate national average rate for the same disease
+    const nationalData = allRows
+        .filter(r => r.disease === Q.disease)
+        .reduce((acc, r) => {
+            if (!acc[r.year]) acc[r.year] = { cases: 0, pop: 0 };
+            acc[r.year].cases += r.cases;
+            acc[r.year].pop += r.population;
+            return acc;
+        }, {});
+    
+    const years = uniqueSorted(stateData.map(r => r.year));
+    const stateRates = years.map(y => stateData.find(d => d.year === y)?.rate || 0);
+    const nationalRates = years.map(y => (nationalData[y]?.pop > 0) ? (nationalData[y].cases / nationalData[y].pop) * 100000 : 0);
+
+    const ctx = document.getElementById('chartB_stateNational').getContext('2d');
+    destroyChart(chartB);
+
+    chartB = ChartHelpers.createBar(ctx, years, [
+        {
+            label: `${Q.state} Rate`,
+            data: stateRates,
+            backgroundColor: ChartHelpers.getColor(0),
+        },
+        {
+            label: 'National Avg. Rate',
+            data: nationalRates,
+            backgroundColor: ChartHelpers.getColor(1),
+        }
+    ], {
+        scales: { y: { title: { display: true, text: 'Rate per 100k' } } },
+        plugins: { 
+            legend: { position: 'bottom' },
+            tooltip: { mode: 'index', intersect: false }
+        }
+    });
+}
+
+// Plot C: Age Group Distribution (Bar Chart) - MOCKED DATA
+function drawStateBar(allRows) {
+    if (typeof ChartHelpers === 'undefined') { console.error('ChartHelpers not loaded. Skipping chart C.'); return; }
+    
+    const currentYearStateData = allRows.filter(r => r.state === Q.state && r.disease === Q.disease && r.year === Q.year);
+    const ctx = document.getElementById('chartC_stateBar').getContext('2d');
+    destroyChart(chartC);
+
+    if (currentYearStateData.length === 0) {
+        ctx.canvas.parentNode.innerHTML = '<div style="text-align:center; padding:50px;" class="muted">Age distribution data not available for this selection.</div>';
+        return;
     }
-    throw new Error("Exceeded maximum API retries.");
+    
+    // MOCKING: Distribute total cases across age groups
+    const totalCases = currentYearStateData.reduce((sum, r) => sum + r.cases, 0);
+    const mockDistribution = { '0-14 Yrs': 0.15, '15-44 Yrs': 0.40, '45-64 Yrs': 0.30, '65+ Yrs': 0.15 };
+    
+    const labels = Object.keys(mockDistribution);
+    const data = labels.map(key => totalCases * mockDistribution[key]);
+
+    chartC = ChartHelpers.createBar(ctx, labels, [{
+        label: `Cases in ${Q.year}`,
+        data: data,
+        backgroundColor: ChartHelpers.getColor(2),
+        borderRadius: 5,
+    }], {
+        scales: { y: { title: { display: true, text: 'Cases (Mocked)' } } },
+        plugins: { 
+            legend: { display: false },
+            tooltip: { mode: 'index', intersect: false }
+        }
+    });
+}
+
+// Plot D: Cases vs. Population Density (Scatter)
+function drawStateScatter(allRows) {
+    if (typeof ChartHelpers === 'undefined') { console.error('ChartHelpers not loaded. Skipping chart D.'); return; }
+    
+    // Compare all states for the current disease/year
+    const scatterData = allRows
+        .filter(r => r.year === Q.year && r.disease === Q.disease)
+        .map(r => ({
+            x: r.population_density,
+            y: r.cases,
+            state: r.state
+        }));
+
+    const ctx = document.getElementById('chartD_stateScatter').getContext('2d');
+    destroyChart(chartD);
+
+    // Highlight the current state
+    const statePoint = scatterData.find(p => p.state === Q.state);
+    const otherPoints = scatterData.filter(p => p.state !== Q.state);
+
+    chartD = ChartHelpers.createScatter(ctx, [
+        {
+            label: 'Other States',
+            data: otherPoints,
+            backgroundColor: ChartHelpers.getColor(3),
+        },
+        {
+            label: Q.state,
+            data: statePoint ? [statePoint] : [],
+            backgroundColor: ChartHelpers.getColor(1), // Use a contrasting color
+            pointRadius: 8,
+            pointHoverRadius: 10,
+        }
+    ], {
+        scales: {
+            x: { title: { display: true, text: 'Population Density' }, type: 'logarithmic' },
+            y: { title: { display: true, text: 'Cases' }, type: 'logarithmic' }
+        },
+        plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+                mode: 'point', // Use point mode for scatter
+                intersect: true,
+                callbacks: {
+                    label: (context) => {
+                        const point = context.raw;
+                        return `${point.state}: ${formatNum(point.y)} cases (Density: ${formatNum(point.x, 1)})`;
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Plot E: Sunburst (All Diseases, All Years for this State)
+function drawStateSunburst(allRows) {
+    if (typeof ChartHelpers === 'undefined' || typeof Chart.controllers.sunburst === 'undefined') {
+        console.warn('Sunburst plugin not loaded. Skipping chart E.'); 
+        document.getElementById('chartE_stateSunburst').getContext('2d').canvas.parentNode.innerHTML = '<div style="text-align:center; padding:50px;" class="muted">Sunburst chart plugin not loaded.</div>';
+        return; 
+    }
+
+    const stateData = allRows.filter(r => r.state === Q.state && r.cases > 0);
+    const ctx = document.getElementById('chartE_stateSunburst').getContext('2d');
+    destroyChart(chartE);
+    
+    // MOCK: Generate hierarchical structure: Disease > Year
+    const sunburstData = [];
+    const diseases = uniqueSorted(stateData.map(r => r.disease));
+    
+    diseases.forEach(disease => {
+        const diseaseTotal = stateData.filter(r => r.disease === disease).reduce((sum, r) => sum + r.cases, 0);
+        sunburstData.push({
+            id: disease,
+            parent: '',
+            value: diseaseTotal,
+        });
+        
+        const years = uniqueSorted(stateData.filter(r => r.disease === disease).map(r => r.year));
+        years.forEach(year => {
+            const yearTotal = stateData.filter(r => r.disease === disease && r.year === year).reduce((sum, r) => sum + r.cases, 0);
+            sunburstData.push({
+                id: `${disease}-${year}`,
+                parent: disease,
+                value: yearTotal,
+            });
+        });
+    });
+
+    chartE = ChartHelpers.createSunburst(ctx, sunburstData, {
+        plugins: { 
+            legend: { display: false },
+            title: { display: true, text: `Case Distribution in ${Q.state} (All Time)`}
+        },
+    });
+}
+
+// Plot F: Heatmap (Disease vs. Year for this State)
+function drawStateHeatmap(allRows) {
+    if (typeof ChartHelpers === 'undefined' || typeof Chart.controllers.matrix === 'undefined') {
+        console.warn('Matrix plugin not loaded. Skipping chart F.'); 
+        document.getElementById('chartF_stateHeatmap').getContext('2d').canvas.parentNode.innerHTML = '<div style="text-align:center; padding:50px;" class="muted">Matrix (Heatmap) chart plugin not loaded.</div>';
+        return; 
+    }
+    
+    const stateData = allRows.filter(r => r.state === Q.state && r.cases > 0);
+    const diseases = uniqueSorted(stateData.map(r => r.disease));
+    const years = uniqueSorted(stateData.map(r => r.year));
+    
+    const data = [];
+    let maxCases = 0;
+    diseases.forEach(d => years.forEach(y => {
+        const v = stateData.filter(r=> r.disease===d && r.year===y).reduce((s,r)=> s + r.cases, 0);
+        data.push({x: y, y: d, v});
+        if(v > maxCases) maxCases = v;
+    }));
+
+    const ctx = document.getElementById('chartF_stateHeatmap').getContext('2d');
+    destroyChart(chartF);
+
+    chartF = ChartHelpers.createMatrix(ctx, data, { x: years, y: diseases }, {
+        label: 'Cases',
+        maxVal: maxCases, // Pass max value for color scaling
+        plugins: {
+            title: { display: true, text: `Case Intensity in ${Q.state}` },
+            tooltip: {
+                callbacks: {
+                    title: (context) => `${context[0].raw.y}`,
+                    label: (context) => `Year ${context[0].raw.x}: ${formatNum(context[0].raw.v)} cases`
+                }
+            }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Year' } },
+            y: { title: { display: true, text: 'Disease' } }
+        }
+    });
 }
 
 
-async function generateSummary() {
-    if (!Q.disease || !Q.year || !Q.state) {
-        setSummaryState('error', 'Missing State, Disease, or Year in URL parameters.');
+// --- MAP (Mini-map for context) ---
+
+async function drawStateMap(allRows) {
+    try {
+        const res = await fetch(GEOJSON_PATH);
+        const geojson = await res.json();
+        
+        const stateFeature = geojson.features.find(f => f.properties.NAME === Q.state);
+        if (!stateFeature) {
+            document.getElementById('stateMap').innerHTML = `<div class="muted" style="padding:20px;">Geographic data for ${Q.state} not found.</div>`;
+            return;
+        }
+
+        if(stateMapInstance) stateMapInstance.remove();
+        
+        stateMapInstance = L.map('stateMap', {
+            zoomControl: false,
+            scrollWheelZoom: false,
+            dragging: false,
+            attributionControl: false
+        }).setView([39.8283, -98.5795], 4); // Default center
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap, &copy; CartoDB'
+        }).addTo(stateMapInstance);
+
+        const layer = L.geoJson(stateFeature, {
+            style: {
+                fillColor: ChartHelpers.getColor(0),
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                fillOpacity: 0.7
+            }
+        }).addTo(stateMapInstance);
+        
+        stateMapInstance.fitBounds(layer.getBounds(), { padding: [10, 10] });
+
+    } catch (e) {
+        console.error("Error drawing state map:", e);
+        document.getElementById('stateMap').innerHTML = `<div class="muted" style="padding:20px;">Error loading map.</div>`;
+    }
+}
+
+
+// --- MAIN INITIALIZATION ---
+
+async function initDashboard() {
+    if (!Q.state || !Q.disease || !Q.year) {
+        document.getElementById('stateTitle').textContent = 'Error: Missing State, Disease, or Year';
+        return;
+    }
+    
+    // 1. Load Data
+    // Use window.loadData (from main.js) to get cached or fresh data
+    if (!window.loadData) {
+        console.error("main.js (with loadData function) must be loaded first.");
+        return;
+    }
+    const allRows = await window.loadData();
+    if (allRows.length === 0) return;
+
+    // 2. Filter Data
+    const stateDataAllTime = allRows.filter(r => r.state === Q.state);
+    const currentDiseaseData = stateDataAllTime.filter(r => r.disease === Q.disease);
+    const currentYearData = stateDataAllTime.filter(r => r.year === Q.year);
+    // Data for scatter plot (all states, current year/disease)
+    const nationalFilteredData = allRows.filter(r => r.year === Q.year && r.disease === Q.disease); 
+    
+    const stateRow = currentDiseaseData.find(r => r.year === Q.year);
+
+    if (!stateRow) {
+        console.error(`No data found for ${Q.disease} in ${Q.state} for ${Q.year}.`);
+        document.getElementById('stateTitle').textContent = `No data found for ${Q.state}`;
         return;
     }
 
-    const state = Q.state;
-    const disease = Q.disease;
-    const year = Q.year;
-
-    const userQuery = `Find public health resources, prevention advice, and key information about ${disease} in ${state} for the year ${year}. Focus the answer on state-specific or official resources.`;
-    const systemPrompt = "You are a public health education specialist. Provide a concise, single-paragraph summary (max 150 words) of the most relevant public health resources and information for a general audience. Do not list sources in the output text; list them separately using the provided citation links.";
-
-    setSummaryState('loading');
-    summaryText.innerHTML = '';
-    citationsList.innerHTML = '';
-    citationsContainer.style.display = 'none';
-
-    try {
-        const result = await callGeminiAPI(userQuery, systemPrompt);
-
-        // Display summary text
-        summaryText.innerHTML = `<p>${result.text}</p>`;
-        
-        // Display citations
-        if (result.sources && result.sources.length > 0) {
-            result.sources.forEach(source => {
-                const li = document.createElement('li');
-                li.innerHTML = `<a href="${source.uri}" target="_blank" rel="noopener noreferrer" style="color:var(--accent); text-decoration:underline;">${source.title}</a>`;
-                citationsList.appendChild(li);
-            });
-            citationsContainer.style.display = 'block';
-        } else {
-            citationsList.innerHTML = '<li>No specific web sources were cited by the grounding service for this query.</li>';
-            citationsContainer.style.display = 'block';
-        }
-
-        setSummaryState('ready', 'Summary generated successfully.');
-    } catch (error) {
-        console.error("Summary generation error:", error);
-        setSummaryState('error', `Failed to generate summary. Please try again. (${error.message || 'Unknown error'})`);
-    }
-}
-
-// --- GEMINI API INTEGRATION END ---
-
-
-// --- EXISTING CHART/MAP LOGIC (kept for completeness) ---
-
-function initMap(stateData) {
-  if (window.stateMap) {
-    window.stateMap.remove();
-  }
-  
-  const mapCenter = [stateData.latitude || 39.8283, stateData.longitude || -98.5795];
-
-  window.stateMap = L.map('stateMap', {
-    zoomControl: false,
-    scrollWheelZoom: false,
-    attributionControl: false,
-    dragging: false,
-    doubleClickZoom: false,
-    boxZoom: false
-  }).setView(mapCenter, 4); 
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    minZoom: 2,
-  }).addTo(window.stateMap);
-
-  // Simple marker for the state
-  const marker = L.marker(mapCenter).addTo(window.stateMap);
-  marker.bindPopup(`<b>${stateData.state}</b><br>Cases: ${formatNum(stateData.cases)}`).openPopup();
-  document.getElementById('stateMapTitle').textContent = `Location of ${stateData.state}`;
-  window.stateMap.setView(mapCenter, 6); // Zoom in a bit on the state
-}
-
-// Chart E: Sunburst (Using Sunburst.js)
-function drawSunburst(allRows, Qobj) {
-    const canvas = document.getElementById('chartE_stateSunburst');
-    if (!canvas) return;
-
-    const data = allRows.filter(r => r.state === Qobj.state).map(r => ({
-        id: `${r.disease}-${r.year}`,
-        parent: r.disease,
-        value: r.cases,
-        disease: r.disease,
-        year: r.year
-    }));
-
-    // Generate hierarchical data structure (Disease -> Year)
-    const diseases = Array.from(new Set(data.map(d => d.disease)));
-    const rootData = [];
-    diseases.forEach(d => {
-        rootData.push({ id: d, parent: '', value: data.filter(r => r.disease === d).reduce((sum, r) => sum + r.value, 0) });
-    });
-
-    const finalData = [...rootData, ...data];
-
-    if (window.chartE) try { window.chartE.destroy(); } catch (e) { }
-    window.chartE = ChartHelpers.createSunburst(canvas.getContext('2d'), finalData, {
-        plugins: {
-            title: { display: false },
-            tooltip: {
-                callbacks: {
-                    title: (context) => context[0].raw.id,
-                    label: (context) => `Cases: ${formatNum(context.raw.value)}`
-                }
-            }
-        }
-    });
-}
-
-// Chart F: Heatmap (Matrix Plot of Disease vs. Year)
-function drawHeatmap(allRows, Qobj) {
-    const canvas = document.getElementById('chartF_stateHeatmap');
-    if (!canvas) return;
-    const container = canvas.parentNode;
-
-    const relevantRows = allRows.filter(r => r.state === Qobj.state);
-    const diseases = Array.from(new Set(relevantRows.map(r => r.disease))).sort();
-    const years = Array.from(new Set(relevantRows.map(r => r.year))).sort();
-
-    if (!window.Chart || typeof Chart.registry.getScale('matrix') === 'undefined') {
-      const table = document.createElement('table');
-      table.style.width='100%'; table.style.fontSize='0.85rem'; table.style.borderCollapse='collapse';
-      let html = '<thead><tr><th>Disease</th>';
-      years.forEach(y => html += `<th style="text-align:right">${y}</th>`);
-      html += '</tr></thead><tbody>';
-
-      diseases.forEach(d => {
-        html += `<tr><td>${d}</td>`;
-        years.forEach(y => {
-          const v = relevantRows.filter(r=> r.disease===d && r.year===y).reduce((s,r)=> s + (Number(r.cases)||0),0);
-          html += `<td style="text-align:right">${formatNum(v)}</td>`;
-        });
-        html += '</tr>';
-      });
-      html += '</tbody>';
-      table.innerHTML = html;
-
-      // Check if a fallback table already exists to prevent duplication
-      const existing = container.querySelector('.heatmap-fallback');
-      if(existing) existing.remove();
-      canvas.style.display = 'none';
-      const wrap = document.createElement('div');
-      wrap.className = 'heatmap-fallback';
-      wrap.appendChild(table);
-      container.appendChild(wrap);
-      console.warn('Matrix plugin missing — inserted table fallback for heatmap.');
-      return;
-    }
-
-    // normal matrix plugin path
-    const data = [];
-    diseases.forEach((d,i)=> years.forEach((y,j)=> {
-      const v = relevantRows.filter(r=> r.state===Qobj.state && r.disease===d && r.year===y).reduce((s,r)=> s + (Number(r.cases)||0),0);
-      data.push({x: y, y: d, v});
-    }));
+    // 3. Update Metadata
+    document.getElementById('stateTitle').textContent = Q.state;
+    document.getElementById('diseaseYearMeta').textContent = `${Q.disease} (${Q.year})`;
+    document.getElementById('statCases').textContent = formatNum(stateRow.cases);
+    document.getElementById('statPop').textContent = formatNum(stateRow.population);
+    document.getElementById('statRate').textContent = formatNum(calculatePer100k(stateRow.cases, stateRow.population), 1);
     
-    if(window.chartF) try{ window.chartF.destroy(); }catch(e){}
-    window.chartF = new Chart(canvas.getContext('2d'), {
-      type:'matrix',
-      data:{datasets:[{label:'Cases', data, backgroundColor: ctx => {
-        const val = ctx.raw.v || 0; 
-        const maxVal = data.reduce((max, item) => Math.max(max, item.v), 0) || 1;
-        const alpha = Math.min(0.95, val / maxVal); 
-        return `rgba(30,144,255,${alpha})`;
-      }, width: ({chart}) => (chart.chartArea.width / Math.max(1, years.length)) - 6, height: ({chart}) => (chart.chartArea.height / Math.max(1, diseases.length)) - 6 }]
-      },
-      options:{ 
-        maintainAspectRatio:false,
-        parsing: false, 
-        scales: {
-          x: { labels: years, type: 'category', offset: true, grid: { drawOnChartArea: false } },
-          y: { labels: diseases, type: 'category', offset: true, grid: { drawOnChartArea: false } }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: (context) => `Cases: ${formatNum(context.raw.v)}` } }
-        }
-      }
+    // Build historical table
+    const historicalData = currentDiseaseData.sort((a,b) => b.year - a.year);
+    let tableHTML = `<table style="width:100%; font-size:0.9rem;">
+        <thead><tr><th>Year</th><th style="text-align:right">Cases</th><th style="text-align:right">Rate/100k</th></tr></thead>
+        <tbody>`;
+    historicalData.forEach(r => {
+        tableHTML += `<tr>
+            <td>${r.year}</td>
+            <td style="text-align:right">${formatNum(r.cases)}</td>
+            <td style="text-align:right">${formatNum(calculatePer100k(r.cases, r.population), 1)}</td>
+        </tr>`;
     });
+    tableHTML += `</tbody></table>`;
+    document.getElementById('summaryTableContainer').innerHTML = tableHTML;
+    document.getElementById('stateLatest').textContent = `Map shows ${Q.state}`;
+
+    // 4. Draw Map
+    drawStateMap(allRows);
+
+    // 5. Create Charts
+    // Note: Some charts use allData or nationalFilteredData for comparison
+    drawStateTrend(allRows); // Plot A
+    drawStateNationalComparison(allRows); // Plot B
+    drawStateBar(allRows); // Plot C (Mocked Age)
+    drawStateScatter(allRows); // Plot D
+    drawStateSunburst(allRows); // Plot E
+    drawStateHeatmap(allRows); // Plot F
 }
 
-
-// Chart A: Line Chart
-function drawLineChart(allRows, Qobj) {
-  const canvas = document.getElementById('chartA_stateLine');
-  if (!canvas) return;
-
-  const groupBy = document.getElementById('lineGroup').value; // 'state' or 'disease'
-  const filterBy = groupBy === 'state' ? Qobj.disease : Qobj.state;
-  const filterKey = groupBy === 'state' ? 'disease' : 'state';
-  const labelKey = groupBy === 'state' ? 'state' : 'disease';
-
-  const comparisonRows = allRows.filter(r => r[filterKey] === filterBy);
-
-  // Group by the key to plot (state or disease)
-  const groups = Array.from(new Set(comparisonRows.map(r => r[labelKey]))).sort();
-  const years = Array.from(new Set(comparisonRows.map(r => r.year))).sort();
-
-  const datasets = groups.map(group => {
-    const data = years.map(year => {
-      // Sum cases for the group in that year
-      return comparisonRows.filter(r => r[labelKey] === group && r.year === year)
-        .reduce((sum, r) => sum + r.cases, 0);
-    });
-
-    // Custom color function to generate distinct colors for comparison
-    const baseHue = Math.floor(Math.random() * 360); 
-    const color = `hsl(${baseHue}, 70%, 50%)`;
-
-    return {
-      label: group,
-      data: data,
-      borderColor: color,
-      backgroundColor: color,
-      borderWidth: 2,
-      pointRadius: 4,
-      pointHoverRadius: 6,
-      fill: false,
-      tension: 0.3
-    };
-  });
-
-  if (window.chartA) try { window.chartA.destroy(); } catch (e) { }
-  window.chartA = ChartHelpers.createLine(canvas.getContext('2d'), years, datasets, {
-    plugins: {
-      title: { display: true, text: `Annual Cases Trend grouped by ${groupBy}` }
-    },
-    scales: {
-      y: { 
-        title: { display: true, text: 'Total Cases' },
-        ticks: { callback: (value) => formatNum(value) }
-      }
-    }
-  });
-}
-
-
-// Chart B: Disease Comparison Bar Chart
-function drawDiseaseBarChart(allRows, Qobj) {
-  const canvas = document.getElementById('chartB_stateBar');
-  if (!canvas) return;
-
-  const comparisonRows = allRows.filter(r => r.state === Qobj.state && r.year === Qobj.year);
-  const diseases = Array.from(new Set(comparisonRows.map(r => r.disease))).sort();
-
-  const data = diseases.map(d => 
-    comparisonRows.filter(r => r.disease === d).reduce((sum, r) => sum + r.cases, 0)
-  );
-
-  const datasets = [{
-    label: 'Total Cases',
-    data: data,
-    backgroundColor: 'rgba(31, 127, 224, 0.7)', // var(--accent)
-    borderColor: 'rgba(31, 127, 224, 1)',
-    borderWidth: 1
-  }];
-
-  if (window.chartB) try { window.chartB.destroy(); } catch (e) { }
-  window.chartB = ChartHelpers.createBar(canvas.getContext('2d'), diseases, datasets, {
-    indexAxis: 'y', // Horizontal bars for better disease name readability
-    plugins: {
-      title: { display: true, text: `Disease Cases in ${Qobj.state} (${Qobj.year})` }
-    },
-    scales: {
-      x: {
-        title: { display: true, text: 'Total Cases' },
-        ticks: { callback: (value) => formatNum(value) }
-      }
-    }
-  });
-}
-
-// Chart C: Cases by Year Bar Chart
-function drawYearBarChart(allRows, Qobj) {
-  const canvas = document.getElementById('chartC_stateBar2');
-  if (!canvas) return;
-
-  const stateRows = allRows.filter(r => r.state === Qobj.state && r.disease === Qobj.disease);
-  const years = Array.from(new Set(stateRows.map(r => r.year))).sort();
-
-  const data = years.map(year => 
-    stateRows.filter(r => r.year === year).reduce((sum, r) => sum + r.cases, 0)
-  );
-
-  const datasets = [{
-    label: 'Total Cases',
-    data: data,
-    backgroundColor: 'rgba(127, 227, 163, 0.7)', // var(--accent-2)
-    borderColor: 'rgba(127, 227, 163, 1)',
-    borderWidth: 1
-  }];
-
-  if (window.chartC) try { window.chartC.destroy(); } catch (e) { }
-  window.chartC = ChartHelpers.createBar(canvas.getContext('2d'), years, datasets, {
-    plugins: {
-      title: { display: true, text: `${Qobj.disease} Cases in ${Qobj.state} Over Time` }
-    },
-    scales: {
-      y: {
-        title: { display: true, text: 'Total Cases' },
-        ticks: { callback: (value) => formatNum(value) }
-      }
-    }
-  });
-}
-
-// Chart D: Scatter Plot (Rate vs. Population Density)
-function drawScatterPlot(allRows, Qobj) {
-  const canvas = document.getElementById('chartD_stateScatter');
-  if (!canvas) return;
-  const yAxisSelect = document.getElementById('scatterYAxis');
-  const yAxisType = yAxisSelect.value; // 'cases' or 'per100k'
-
-  const comparisonRows = allRows.filter(r => r.year === Qobj.year && r.disease === Qobj.disease);
-
-  const dataPoints = comparisonRows.map(r => ({
-    x: r.population_density,
-    y: yAxisType === 'cases' ? r.cases : r.per100k,
-    state: r.state
-  }));
-
-  const statePoint = dataPoints.find(p => p.state === Qobj.state) || null;
-
-  // Split into two datasets to highlight the selected state
-  const otherStatesData = dataPoints.filter(p => p.state !== Qobj.state);
-
-  const datasets = [{
-    label: 'Other States',
-    data: otherStatesData,
-    backgroundColor: 'rgba(31, 127, 224, 0.4)',
-    pointRadius: 5,
-    pointHoverRadius: 8,
-  }];
-
-  if (statePoint) {
-    datasets.push({
-      label: Qobj.state,
-      data: [statePoint],
-      backgroundColor: 'red',
-      pointRadius: 8,
-      pointHoverRadius: 10,
-      borderColor: 'white',
-      borderWidth: 2,
-    });
-  }
-
-  if (window.chartD) try { window.chartD.destroy(); } catch (e) { }
-  window.chartD = ChartHelpers.createScatter(canvas.getContext('2d'), datasets, {
-    type: 'scatter',
-    data: { datasets: datasets },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {
-        title: { display: true, text: `${Qobj.disease} (${Qobj.year}): ${yAxisType === 'cases' ? 'Cases' : 'Rate / 100k'} vs. Population Density` },
-        tooltip: {
-          callbacks: {
-            label: (context) => {
-              const state = context.raw.state;
-              const yVal = formatNum(Math.round(context.raw.y));
-              const xVal = formatNum(Math.round(context.raw.x));
-              return `${state}: Y=${yVal}, Density=${xVal}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          type: 'linear',
-          position: 'bottom',
-          title: { display: true, text: 'Population Density' }
-        },
-        y: {
-          type: 'linear',
-          title: { display: true, text: yAxisType === 'cases' ? 'Total Cases' : 'Rate per 100k' },
-          ticks: { callback: (value) => formatNum(value) }
-        }
-      }
-    }
-  });
-
-  // Re-draw on select change
-  yAxisSelect.onchange = () => drawScatterPlot(allRows, Qobj);
-}
-
-
-// --- Main Load Function ---
+// --- Event Listeners and Initial Load ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Set initial state for summarizer
-    setSummaryState('ready'); 
-    
-    // Add event listener for the summarizer button
-    if (summaryBtn) {
-        summaryBtn.addEventListener('click', generateSummary);
-    }
-    
-    // Handle back button
+    // Back button
     document.getElementById('backToMap').addEventListener('click', () => {
-        const q = new URLSearchParams({ disease: Q.disease, year: Q.year });
-        location.href = `map.html?${q.toString()}`;
+      const q = new URLSearchParams({ disease: Q.disease, year: Q.year });
+      location.href = `map.html?${q.toString()}`;
     });
     
-    // Set titles
-    document.getElementById('stateTitle').textContent = Q.state;
-    document.getElementById('diseaseYearMeta').textContent = `${Q.disease} - ${Q.year}`;
-
-    Papa.parse(DATA_PATH, {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete: function(results) {
-            const allRows = results.data.map(normaliseRow).filter(r => r.cases !== 0 && r.year && r.disease);
-
-            const stateYearDiseaseRows = allRows.filter(r => 
-                r.state === Q.state && 
-                r.disease === Q.disease && 
-                String(r.year) === String(Q.year)
-            );
-            
-            // Aggregated data for the state/year/disease (for stats panel)
-            const aggData = stateYearDiseaseRows.reduce((acc, row) => {
-                acc.cases += row.cases;
-                acc.population = Math.max(acc.population, row.population); // Use max as population might be repeated/same
-                acc.population_density = Math.max(acc.population_density, row.population_density);
-                return acc;
-            }, { cases: 0, population: 0, population_density: 0 });
-
-            aggData.per100k = (aggData.cases / Math.max(1, aggData.population)) * 100000;
-
-            if (aggData.cases > 0) {
-                // Update Stats Panel
-                document.getElementById('totalCases').textContent = formatNum(aggData.cases);
-                document.getElementById('rate100k').textContent = formatNum(Math.round(aggData.per100k));
-                document.getElementById('populationTotal').textContent = formatNum(aggData.population);
-                document.getElementById('stateLatest').textContent = `Latest: ${Q.disease} cases in ${Q.year}`;
-
-                // Draw Map
-                initMap({ 
-                    state: Q.state, 
-                    cases: aggData.cases,
-                    latitude: 39.8283, // Placeholder coordinates, ideally from a lookup
-                    longitude: -98.5795,
-                    // Note: In a real app, you'd load state centroid coordinates for better map focus
-                });
-
-                // Draw Charts
-                drawLineChart(allRows, Q);
-                document.getElementById('lineGroup').onchange = () => drawLineChart(allRows, Q);
-                
-                drawDiseaseBarChart(allRows, Q);
-                drawYearBarChart(allRows, Q);
-                drawScatterPlot(allRows, Q);
-                drawSunburst(allRows, Q);
-                drawHeatmap(allRows, Q);
-
-
-            } else {
-                console.error('No data found for the selected state, disease, and year.');
-                // Display error message on the page
-                document.getElementById('diseaseYearMeta').textContent = `No data found for ${Q.disease} in ${Q.year} for ${Q.state}`;
-            }
-
-        },
-        error: function(error) {
-            console.error("Error loading CSV:", error);
-            document.getElementById('diseaseYearMeta').textContent = 'Error loading data.';
-        }
-    });
+    // Initialize the dashboard
+    // We must wait for main.js to load data and for ChartHelpers to be defined
+    if(typeof ChartHelpers !== 'undefined' && typeof Papa !== 'undefined'){
+      initDashboard();
+    } else {
+      console.error("Dependencies (ChartHelpers, PapaParse) are not fully loaded.");
+      // Retry once after a short delay
+      setTimeout(initDashboard, 500);
+    }
 });
-
 
 
 
