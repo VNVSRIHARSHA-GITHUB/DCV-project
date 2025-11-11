@@ -25,94 +25,57 @@
   <main class="container page">
     <section class="top-block">
       <div class="card map-card">
-        <h3 id="stateMapTitle">State Map</h3>
-        <div id="stateMap" style="height:360px"></div>
+        <h3 id="stateMapTitle">State Map: Loading...</h3>
+        <div class="map-wrapper">
+          <div id="stateMap" class="leaflet-container"></div>
+        </div>
         <div class="small muted" id="stateLatest">Latest: —</div>
       </div>
 
       <aside class="card meta">
-        <h3 id="stateTitle">State</h3>
-        <div id="diseaseYearMeta"></div>
-
-        <div id="diseaseStats" class="stats-grid">
-          <div class="stat-item">
-            <span class="stat-value" id="totalCases">—</span>
-            <span class="stat-label">Total Cases</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="rate100k">—</span>
-            <span class="stat-label">Rate / 100k</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="populationTotal">—</span>
-            <span class="stat-label">Population</span>
-          </div>
+        <h3 id="stateTitle" class="text-accent">State Details</h3>
+        <div id="diseaseYearMeta" class="text-lg font-bold"></div>
+        
+        <div class="stat-group">
+          <div><div class="small-stat" id="statCases">--</div><div class="small-label">Cases (Current)</div></div>
+          <div><div class="small-stat" id="statRate">--</div><div class="small-label">Rate/100k</div></div>
+          <div><div class="small-stat" id="statPop">--</div><div class="small-label">Population</div></div>
         </div>
-        <p class="small muted mt-4">Data is aggregated for the selected year and state.</p>
+
+        <h4 class="mt-4 border-t pt-3">Key Metrics History</h4>
+        <div id="summaryTableContainer" style="overflow-x: auto;">
+          </div>
       </aside>
     </section>
-    
-    <!-- NEW SECTION FOR RESOURCE SUMMARIZER -->
-    <section class="resource-summary-block">
-      <div class="card">
-        <h3>Public Health Resource Summarizer</h3>
-        <p class="small muted">Uses the Gemini API with Google Search grounding to provide a summary of public health resources for the selected disease, state, and year.</p>
-        
-        <div id="summaryOutput" class="mt-4">
-          <!-- Summary content will be loaded here -->
-          <div id="summaryLoading" style="display:none; text-align:center; padding: 20px;">
-            <i class="fa fa-spinner fa-spin fa-2x"></i>
-            <p class="mt-2">Generating summary...</p>
-          </div>
-          <div id="summaryText">
-            <p class="muted">Click **'Generate Summary'** to get relevant public health information.</p>
-          </div>
-          <div id="summaryError" style="color:var(--accent); display:none; padding:10px; border:1px solid var(--accent); border-radius:8px; margin-top:12px;"></div>
-        </div>
-        
-        <button id="generateSummaryBtn" class="btn primary mt-4"><i class="fa fa-search"></i> Generate Summary</button>
-
-        <div id="citations" class="small mt-4" style="display:none;">
-          <h4>Sources & Citations:</h4>
-          <ul id="citationsList" class="list-disc ml-4">
-            <!-- Citations will be listed here -->
-          </ul>
-        </div>
-
-      </div>
-    </section>
-    <!-- END NEW SECTION -->
 
     <section class="charts-grid">
       <div class="card">
-        <h3>Plot A — Annual Trends (Cases)</h3>
-        <label>Group by<select id="lineGroup" class="select"><option value="state">By State</option><option value="disease">By Disease</option></select></label>
-        <div class="chart-wrapper"><canvas id="chartA_stateLine"></canvas></div>
+        <h3>Plot A — Annual Cases Trend (Time Series)</h3>
+        <div class="chart-wrapper"><canvas id="chartA_stateTrend"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot B — Disease Comparison (Bar)</h3>
-        <div class="chart-wrapper"><canvas id="chartB_stateBar"></canvas></div>
+        <h3>Plot B — State Rate vs. National Average</h3>
+        <div class="chart-wrapper"><canvas id="chartB_stateNational"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot C — Cases by Year (Bar)</h3>
-        <div class="chart-wrapper"><canvas id="chartC_stateBar2"></canvas></div>
+        <h3>Plot C — Age Group Distribution (Bar Chart)</h3>
+        <div class="chart-wrapper"><canvas id="chartC_stateBar"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot D — Scatter Plot (Rate vs. Population Density)</h3>
-        <select id="scatterYAxis" class="select"><option value="cases">Cases</option><option value="per100k">Per 100k</option></select>
+        <h3>Plot D — Cases vs. Population Density (Scatter)</h3>
         <div class="chart-wrapper"><canvas id="chartD_stateScatter"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot E — Sunburst</h3>
+        <h3>Plot E — Sunburst (Example Multi-Level Plot)</h3>
         <div class="chart-wrapper"><canvas id="chartE_stateSunburst"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot F — Heatmap</h3>
+        <h3>Plot F — Heatmap (Disease vs. Year)</h3>
         <div class="chart-wrapper"><canvas id="chartF_stateHeatmap"></canvas></div>
       </div>
     </section>
@@ -120,21 +83,18 @@
 
   <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
 
-    <!-- CSV + Leaflet (keep) -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 
-  <!-- Chart core (explicit compatible build/version) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
-  <!-- Chart plugins (must load AFTER Chart core) -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
 
-  <!-- Local Scripts -->
-  <script src="charts.js"></script>
-  <script src="theme.js"></script>
-  <script src="state.js"></script>
+  <script src="assets/js/theme.js"></script>
+  <script src="assets/js/charts.js"></script>
+  <script src="assets/js/state.js"></script>
 </body>
 </html>
