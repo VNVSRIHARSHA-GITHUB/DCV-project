@@ -1,4 +1,4 @@
-Year,State,Cases,Disease,Population,Population Density
+year,state,cases,disease,population,population_density
 2000,Alabama,240517,Diabetics,4447100.0,87.8
 2001,Alabama,320268,Diabetics,4447100.0,87.8
 2002,Alabama,284630,Diabetics,4447100.0,87.8
@@ -10604,3 +10604,4 @@ Year,State,Cases,Disease,Population,Population Density
 2021,Wyoming,3,Tuberculosis,576851.0,5.9
 2022,Wyoming,1,Tuberculosis,576851.0,5.9
 2023,Wyoming,2,Tuberculosis,576851.0,5.9
+
