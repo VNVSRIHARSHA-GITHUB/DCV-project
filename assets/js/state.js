@@ -1,18 +1,39 @@
-// state.js
+// state.js (replacement)
+// - Robust column handling (same strategy as map.js)
+// - Use cached window.__PHdata when present
+// - Ensure controls actually redraw charts and multi-select supports multiple selections
+
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
 const GEOJSON_PATH = 'usa_states.geojson';
 let stateMap;
 let q = (new URLSearchParams(location.search));
 q = { state: q.get('state') || 'California', disease: q.get('disease') || null, year: q.get('year') || null };
 
+function _pick(obj, keys){
+  for(const k of keys) if(obj[k] !== undefined) return obj[k];
+  return undefined;
+}
+function normaliseRow(r){
+  return {
+    state: _pick(r, ['state','State','STATE','location','province']) || '',
+    year: _pick(r, ['year','Year','YEAR']) || '',
+    disease: _pick(r, ['disease','Disease','condition']) || '',
+    cases: Number(_pick(r, ['cases','Cases','value','count']) || 0),
+    population: Number(_pick(r, ['population','Population','pop']) || 0),
+    population_density: Number(_pick(r, ['population_density','population density','density','pop_density']) || 0)
+  };
+}
+
 function formatN(n){ return n ? Number(n).toLocaleString() : '—'; }
 
 async function init(){
   document.getElementById('backToMap').addEventListener('click', ()=> location.href = `map.html?disease=${encodeURIComponent(q.disease||'')}&year=${encodeURIComponent(q.year||'')}`);
-  // load CSV
-  const data = await new Promise(res=> Papa.parse(DATA_PATH, {download:true, header:true, complete: r=>res(r.data)}));
-  window.stateAll = data.filter(r=> r.state === q.state);
-  const stateFiltered = window.stateAll.filter(r=> (!q.disease || r.disease===q.disease) && (!q.year || r.year===q.year));
+
+  // use cached dataset if available
+  const all = window.__PHdata ? window.__PHdata : (await new Promise(res=> Papa.parse(DATA_PATH,{download:true,header:true,complete(r)=>res(r.data)})));
+  window.stateAll = (all||[]).map(normaliseRow).filter(r=> r.state);
+
+  const stateFiltered = window.stateAll.filter(r=> (!q.disease || r.disease===q.disease) && (!q.year || String(r.year)===String(q.year)));
   document.getElementById('stateTitle').innerText = q.state;
   document.getElementById('diseaseYearText').innerText = (q.disease? q.disease : 'All diseases') + (q.year ? ' · ' + q.year : '');
   const totalCases = stateFiltered.reduce((a,b)=> a + (Number(b.cases)||0), 0);
@@ -22,25 +43,26 @@ async function init(){
   document.getElementById('statePopulation').innerText = formatN(pop);
   document.getElementById('stateDensity').innerText = dens;
 
-  // map
   const geo = await fetch(GEOJSON_PATH).then(r=>r.json());
   const feat = geo.features.find(f => (f.properties.name || f.properties.NAME) === q.state);
   const center = feat ? getFeatureCenter(feat) : [37.8,-96];
   if(!stateMap){ stateMap = L.map('stateMap').setView(center, feat?6:4); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(stateMap); }
-  if(feat) L.geoJSON(feat, {style:{fillColor:'#ff6b6b', fillOpacity:0.5, color:'#fff'}}).addTo(stateMap);
+  if(feat) L.geoJSON(feat, {style:{fillColor:'#7fe3a3', fillOpacity:0.5, color:'#fff'}}).addTo(stateMap);
   document.getElementById('stateLatest').innerText = `Latest (${q.year||'all'}): ${formatN(totalCases)} cases`;
 
-  // charts
   drawStateTimeSeries();
   drawStatePer100k();
   drawStateCompare();
   drawStateScatter();
   drawSunburst();
   drawHeatmap();
-  // bind controls
+
+  // controls
   document.getElementById('chartA_norm').addEventListener('change', drawStateTimeSeries);
   document.getElementById('chartA_axis').addEventListener('change', drawStateTimeSeries);
-  Array.from(document.getElementById('stateDiseaseSelect').options).forEach(o=> o.selected = true);
+  document.getElementById('stateDiseaseSelect').addEventListener('change', drawStateCompare);
+  document.getElementById('stateScatterX').addEventListener('change', drawStateScatter);
+  document.getElementById('stateScatterY').addEventListener('change', drawStateScatter);
 }
 
 function getFeatureCenter(feature){
@@ -73,10 +95,10 @@ function drawStatePer100k(){
 }
 
 function drawStateCompare(){
-  // fill disease selector
   const diseases = Array.from(new Set(window.stateAll.map(r=>r.disease))).sort();
   const sel = document.getElementById('stateDiseaseSelect');
   sel.innerHTML = diseases.map(d=>`<option value="${d}">${d}</option>`).join('');
+  // keep selections persistent if some were previously selected
   const selected = Array.from(sel.selectedOptions).map(o=>o.value) || diseases.slice(0,3);
   const years = Array.from(new Set(window.stateAll.map(r=>r.year))).sort();
   const datasets = selected.map((d,i)=> {
@@ -86,7 +108,6 @@ function drawStateCompare(){
   const ctx = document.getElementById('chartC_stateCompare').getContext('2d');
   if(window.chartC) window.chartC.destroy();
   window.chartC = new Chart(ctx,{type:'line', data:{labels:years, datasets}, options:{maintainAspectRatio:false}});
-  sel.addEventListener('change', ()=> drawStateCompare());
 }
 
 function drawStateScatter(){
@@ -102,14 +123,11 @@ function drawStateScatter(){
   const ctx = document.getElementById('chartD_stateScatter').getContext('2d');
   if(window.chartD) window.chartD.destroy();
   window.chartD = new Chart(ctx, {type:'scatter', data:{datasets:[{label:'Points', data:points, backgroundColor:'rgba(95,220,200,0.9)'}]}, options:{maintainAspectRatio:false, scales:{x:{title:{display:true,text:x}}, y:{title:{display:true,text:y}}}}});
-  document.getElementById('stateScatterX').addEventListener('change', drawStateScatter);
-  document.getElementById('stateScatterY').addEventListener('change', drawStateScatter);
 }
 
 function drawSunburst(){
   const chartECtx = document.getElementById('chartE_stateSunburst').getContext('2d');
   if(window.chartE) window.chartE.destroy();
-  // build tree
   const byYear = {};
   window.stateAll.forEach(r=> {
     const year = r.year || 'Unknown'; const dis = r.disease || 'Unknown'; const val = Number(r.cases)||0;
@@ -121,7 +139,6 @@ function drawSunburst(){
 }
 
 function drawHeatmap(){
-  // matrix: y=disease, x=year
   const chartFCtx = document.getElementById('chartF_stateHeatmap').getContext('2d');
   const diseases = Array.from(new Set(window.stateAll.map(r=>r.disease))).sort();
   const years = Array.from(new Set(window.stateAll.map(r=>r.year))).sort();
@@ -135,4 +152,5 @@ function drawHeatmap(){
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
 
