@@ -1,11 +1,5 @@
-// map.js (complete replacement)
-// - Robust column-name handling (common alternative names)
-// - Cases choropleth uses blue->green->violet ramp (no red)
-// - Density choropleth overlay added (toggleable via layer control)
-// - Popups appear on mouseover and on click
-// - Removes previous layers before adding new ones (prevents double stacking)
-// - Uses cached window.__PHdata if available (main.js sets it); otherwise loads CSV
-// - Hooks UI controls to redraw charts and maps
+// assets/js/map.js
+// Robust map page script: two choropleth layers (Cases & Density), charts, popups, controls
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
 const GEOJSON_PATH = 'usa_states.geojson';
@@ -15,31 +9,33 @@ let geojsonData;
 let byStateAgg = {};
 let casesLayer = null;
 let densityLayer = null;
+let _layerControl = null;
 
 let casesByStateChart, histChart, scatterChart, multiChart, boxChart;
 
 function _pick(obj, keys){
-  for(const k of keys) if(obj[k] !== undefined) return obj[k];
+  for(const k of keys) if(obj && (obj[k] !== undefined)) return obj[k];
   return undefined;
 }
 
 function normaliseRow(r){
-  // robust field selection - map likely variants to standard keys
+  // Accepts common header variants and returns canonical object
   return {
-    state: _pick(r, ['state','State','STATE','location','province']) || '',
-    year: _pick(r, ['year','Year','YEAR']) || '',
-    disease: _pick(r, ['disease','Disease','condition']) || '',
-    cases: Number(_pick(r, ['cases','Cases','value','count']) || 0),
-    population: Number(_pick(r, ['population','Population','pop']) || 0),
-    population_density: Number(_pick(r, ['population_density','population density','density','pop_density']) || 0)
+    state: _pick(r, ['state','State','STATE','location','Location','province']) || '',
+    year: _pick(r, ['year','Year','YEAR','yr']) || '',
+    disease: _pick(r, ['disease','Disease','condition','Condition']) || '',
+    cases: Number(_pick(r, ['cases','Cases','value','count','Count']) || 0),
+    population: Number(_pick(r, ['population','Population','pop','Pop']) || 0),
+    population_density: Number(_pick(r, ['population_density','population density','density','pop_density','pop density']) || 0)
   };
 }
 
-function fetchAll(){
-  return Promise.all([
-    fetch(GEOJSON_PATH).then(r=>r.json()),
-    new Promise(res=> Papa.parse(DATA_PATH,{download:true,header:true,complete(r){ res(r.data); }}))
-  ]);
+function loadAll(){
+  // returns Promise<[geojson, parsedRows]>
+  const csvPromise = window.__PHdata ? Promise.resolve(window.__PHdata) :
+    new Promise(res => Papa.parse(DATA_PATH, { download:true, header:true, complete(r){ res(r.data); } }));
+
+  return Promise.all([ fetch(GEOJSON_PATH).then(r=>r.json()), csvPromise ]);
 }
 
 function formatNum(n){ if(n===null||n===undefined) return '—'; return Number(n).toLocaleString(); }
@@ -68,37 +64,44 @@ function init(){
 
   document.getElementById('homeBtn').addEventListener('click', ()=> location.href='index.html');
 
-  // load geo + csv (use any cached window.__PHdata if present)
-  const csvPromise = window.__PHdata ? Promise.resolve(window.__PHdata) :
-    new Promise(res=> Papa.parse(DATA_PATH,{download:true,header:true,complete(r)=> res(r.data)}));
+  loadAll().then(([geojson, csvData])=>{
+    geojsonData = geojson;
+    // normalise CSV and cache
+    window.__PHdata = (csvData || []).map(normaliseRow).filter(x=> x.state && x.year);
+    const data = window.__PHdata;
 
-  Promise.all([ fetch(GEOJSON_PATH).then(r=>r.json()), csvPromise ])
-    .then(([geojson, csvData]) => {
-      geojsonData = geojson;
-      // normalise CSV rows once and cache to window for other pages
-      window.__PHdata = (csvData||[]).map(normaliseRow).filter(x=> x.state && x.year);
-      const data = window.__PHdata;
+    // update header
+    const header = document.querySelector('.map-card .small');
+    if(header) header.innerText = `Dataset: ${currentDisease || 'All'} · Year: ${currentYear || 'All'}`;
 
-      // header text
-      const header = document.querySelector('.map-card .small');
-      if(header) header.innerText = `Dataset: ${currentDisease || 'All'} · Year: ${currentYear || 'All'}`;
+    byStateAgg = aggregateByState(data, currentDisease, currentYear);
+    buildMaps(geojson, byStateAgg);
+    buildAllCharts(data, byStateAgg);
+    renderSummaryTable(byStateAgg);
+    populateMultiDiseaseSelector(data);
+  }).catch(err => {
+    console.error('Load error', err);
+    const container = document.getElementById('summaryTableContainer');
+    if(container) container.innerText = 'Failed to load data — check console.';
+  });
 
-      byStateAgg = aggregateByState(data, currentDisease, currentYear);
-      buildMaps(geojson, byStateAgg);
-      buildAllCharts(data, byStateAgg);
-      renderSummaryTable(byStateAgg);
-      populateMultiDiseaseSelector(data);
-    }).catch(err=> console.error('Load error', err));
-
-  // controls
-  document.getElementById('casesSortSelect').addEventListener('change', (e)=> buildCasesByStateBar(byStateAgg, e.target.value));
-  document.getElementById('histNorm').addEventListener('change', ()=> buildHistogram(byStateAgg));
-  document.getElementById('scatterColorBy').addEventListener('change', ()=> buildScatter(byStateAgg));
-  document.getElementById('scatterPerCapita').addEventListener('change', ()=> buildScatter(byStateAgg));
-  document.getElementById('diseaseMultiSelect').addEventListener('change', ()=> buildMultiSeries());
-  document.getElementById('boxGroup').addEventListener('change', ()=> buildBoxPlot());
-  document.getElementById('boxNorm').addEventListener('change', ()=> buildBoxPlot());
-  document.getElementById('boxAxis').addEventListener('change', ()=> buildBoxPlot());
+  // wire up control listeners
+  const casesSortSelect = document.getElementById('casesSortSelect');
+  if(casesSortSelect) casesSortSelect.addEventListener('change', (e)=> buildCasesByStateBar(byStateAgg, e.target.value));
+  const histNorm = document.getElementById('histNorm');
+  if(histNorm) histNorm.addEventListener('change', ()=> buildHistogram(byStateAgg));
+  const scatterColorBy = document.getElementById('scatterColorBy');
+  if(scatterColorBy) scatterColorBy.addEventListener('change', ()=> buildScatter(byStateAgg));
+  const scatterPerCapita = document.getElementById('scatterPerCapita');
+  if(scatterPerCapita) scatterPerCapita.addEventListener('change', ()=> buildScatter(byStateAgg));
+  const diseaseMultiSelect = document.getElementById('diseaseMultiSelect');
+  if(diseaseMultiSelect) diseaseMultiSelect.addEventListener('change', ()=> buildMultiSeries());
+  const boxGroup = document.getElementById('boxGroup');
+  if(boxGroup) boxGroup.addEventListener('change', ()=> buildBoxPlot());
+  const boxNorm = document.getElementById('boxNorm');
+  if(boxNorm) boxNorm.addEventListener('change', ()=> buildBoxPlot());
+  const boxAxis = document.getElementById('boxAxis');
+  if(boxAxis) boxAxis.addEventListener('change', ()=> buildBoxPlot());
 }
 
 function styleHighlight(feature){
@@ -106,15 +109,14 @@ function styleHighlight(feature){
 }
 
 function buildMaps(geojson, byState){
-  // colour ramps: gentle green -> blue -> violet -> deep purple (no red)
+  // color ramps — no red
   const getColorCases = v => {
-    if(v > 2000000) return '#3b0d6b';
-    if(v > 500000) return '#7b4bd6';
-    if(v > 100000) return '#4f9bd6';
-    if(v > 20000) return '#7fe3a3';
-    return '#e6fbf0';
+    if(v > 2000000) return '#3b0d6b'; // deep purple
+    if(v > 500000) return '#7b4bd6';  // violet
+    if(v > 100000) return '#4f9bd6';  // blue
+    if(v > 20000) return '#7fe3a3';   // green
+    return '#e6fbf0';                 // very light green
   };
-
   const getColorDensity = d => {
     if(d > 1000) return '#3b0d6b';
     if(d > 300) return '#7b4bd6';
@@ -125,15 +127,16 @@ function buildMaps(geojson, byState){
 
   // init map once
   if(!casesMap){
-    casesMap = L.map('casesMap', {preferCanvas:true}).setView([37.8,-96],4);
+    casesMap = L.map('casesMap', { preferCanvas:true }).setView([37.8,-96],4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(casesMap);
   }
 
-  // remove old layers
-  if(casesLayer) { casesMap.removeLayer(casesLayer); casesLayer = null; }
-  if(densityLayer) { casesMap.removeLayer(densityLayer); densityLayer = null; }
+  // remove existing layers if present
+  if(casesLayer){ try{ casesMap.removeLayer(casesLayer); }catch(e){} casesLayer = null; }
+  if(densityLayer){ try{ casesMap.removeLayer(densityLayer); }catch(e){} densityLayer = null; }
+  if(_layerControl){ try{ _layerControl.remove(); }catch(e){} _layerControl = null; }
 
-  // build cases layer
+  // build cases choropleth
   casesLayer = L.geoJSON(geojson, {
     style: feature => {
       const name = feature.properties.name || feature.properties.NAME || feature.properties.STATE_NAME;
@@ -143,24 +146,18 @@ function buildMaps(geojson, byState){
     onEachFeature: function(feature, layer){
       const name = feature.properties.name || feature.properties.NAME || feature.properties.STATE_NAME;
       const s = byState[name] || {cases:0,population:0,density:0, per100k:0};
-
       const popupHtml = `<strong>${name}</strong><br/>Cases: ${formatNum(s.cases)}<br/>Population: ${formatNum(s.population)}<br/>Density: ${s.density || '—'}<br/>Per 100k: ${Math.round(s.per100k)}`;
-
       layer.bindPopup(popupHtml);
 
       layer.on('mouseover', function(e){
         this.openPopup();
         this.setStyle(styleHighlight(feature));
       });
-
       layer.on('mouseout', function(e){
         this.closePopup();
-        // reset style - leaflet will reapply the style function when needed; simpler to reset by removing and re-adding?
         casesLayer.resetStyle(this);
       });
-
-      layer.on('click', ()=> {
-        // navigate to state page (preserve disease/year from header)
+      layer.on('click', function(){
         const params = new URLSearchParams(location.search);
         const disease = params.get('disease') || '';
         const year = params.get('year') || '';
@@ -169,7 +166,7 @@ function buildMaps(geojson, byState){
     }
   }).addTo(casesMap);
 
-  // build density layer (separate style, but same geojson)
+  // build density choropleth (separate)
   densityLayer = L.geoJSON(geojson, {
     style: feature => {
       const name = feature.properties.name || feature.properties.NAME || feature.properties.STATE_NAME;
@@ -181,9 +178,10 @@ function buildMaps(geojson, byState){
       const s = byState[name] || {cases:0,population:0,density:0, per100k:0};
       const popupHtml = `<strong>${name}</strong><br/>Density: ${formatNum(s.density)}<br/>Cases: ${formatNum(s.cases)}<br/>Per 100k: ${Math.round(s.per100k)}`;
       layer.bindPopup(popupHtml);
+
       layer.on('mouseover', function(){ this.openPopup(); this.setStyle(styleHighlight(feature)); });
       layer.on('mouseout', function(){ this.closePopup(); densityLayer.resetStyle(this); });
-      layer.on('click', ()=> {
+      layer.on('click', function(){
         const params = new URLSearchParams(location.search);
         const disease = params.get('disease') || '';
         const year = params.get('year') || '';
@@ -192,17 +190,9 @@ function buildMaps(geojson, byState){
     }
   });
 
-  // Add both layers to a layer control so user can toggle
-  const overlays = {
-    "Cases": casesLayer,
-    "Density": densityLayer
-  };
-  // Add layer control (remove existing first)
-  if(window._ph_layer_control) { window._ph_layer_control.remove(); window._ph_layer_control = null; }
-  window._ph_layer_control = L.control.layers(null, overlays, { collapsed:false }).addTo(casesMap);
-
-  // default: show cases, keep density available via control
-  // casesLayer already added; density layer is left off map (control will toggle)
+  // add overlay control and default: show cases
+  _layerControl = L.control.layers(null, { 'Cases': casesLayer, 'Density': densityLayer }, { collapsed:false }).addTo(casesMap);
+  // Make sure cases are visible (they already are). Density available via control.
 }
 
 function buildAllCharts(allData, byState){
@@ -248,7 +238,8 @@ function roundBinWidth(width){
 }
 
 function buildHistogram(byState){
-  const norm = document.getElementById('histNorm').value;
+  const normEl = document.getElementById('histNorm');
+  const norm = normEl ? normEl.value : 'absolute';
   const arr = Object.entries(byState).map(([s,v]) => {
     if(norm === 'per100k') return v.per100k || 0;
     return v.cases || 0;
@@ -288,7 +279,8 @@ function buildHistogram(byState){
 }
 
 function buildScatter(byState){
-  const perCap = document.getElementById('scatterPerCapita').checked;
+  const perCapEl = document.getElementById('scatterPerCapita');
+  const perCap = perCapEl ? perCapEl.checked : false;
   const points = Object.entries(byState).map(([s,v])=>{
     return { x: v.density || 0, y: perCap ? v.per100k || 0 : v.cases || 0, label:s };
   });
@@ -301,10 +293,10 @@ function buildScatter(byState){
 }
 
 function populateMultiDiseaseSelector(allData){
-  const ds = Array.from(new Set(allData.map(r=>r.disease))).sort();
   const sel = document.getElementById('diseaseMultiSelect');
+  if(!sel) return;
+  const ds = Array.from(new Set(allData.map(r=>r.disease))).sort();
   sel.innerHTML = ds.map(d=>`<option value="${d}">${d}</option>`).join('');
-  // default top 4
   const totals = {};
   allData.forEach(r=> totals[r.disease] = (totals[r.disease]||0) + (Number(r.cases)||0));
   const top = Object.entries(totals).sort((a,b)=>b[1]-a[1]).slice(0,4).map(x=>x[0]);
@@ -312,9 +304,10 @@ function populateMultiDiseaseSelector(allData){
 }
 
 function buildMultiSeries(allData){
-  // if called without argument, use cached
   const data = allData || window.__PHdata || [];
-  const selected = Array.from(document.getElementById('diseaseMultiSelect').selectedOptions).map(o=>o.value);
+  const sel = document.getElementById('diseaseMultiSelect');
+  if(!sel) return;
+  const selected = Array.from(sel.selectedOptions).map(o=>o.value);
   if(!selected.length) return;
   const yearsPer = {};
   selected.forEach(d=>{
@@ -335,13 +328,11 @@ function buildMultiSeries(allData){
 }
 
 function buildBoxPlot(){
-  // Use cached CSV for boxplot computation
   const allData = window.__PHdata || [];
-  const group = document.getElementById('boxGroup').value;
-  const norm = document.getElementById('boxNorm').value;
-  const axis = document.getElementById('boxAxis').value;
+  const group = (document.getElementById('boxGroup') || {}).value || 'byYear';
+  const norm = (document.getElementById('boxNorm') || {}).value || 'absolute';
+  const axis = (document.getElementById('boxAxis') || {}).value || 'linear';
 
-  // if byYear: for each year compute array of state values
   if(group === 'byYear'){
     const years = Array.from(new Set(allData.map(x=>x.year))).sort();
     const labels = [];
@@ -362,10 +353,8 @@ function buildBoxPlot(){
     });
     const ctx = document.getElementById('boxplotCases').getContext('2d');
     if(boxChart) boxChart.destroy();
-    // chartjs-boxplot expects dataset.data as array of arrays where each array corresponds to a label
     boxChart = new Chart(ctx, {type:'boxplot', data:{labels, datasets:[{label:'Distribution', backgroundColor:'rgba(30,144,255,0.6)', data: datasetsArr}]}, options:{maintainAspectRatio:false, scales:{y:{type: axis}}}});
   } else {
-    // byState: each box across years
     const states = Array.from(new Set(allData.map(x=>x.state))).sort();
     const years = Array.from(new Set(allData.map(x=>x.year))).sort();
     const datasetsArr = states.map(s => {
@@ -386,9 +375,12 @@ function buildBoxPlot(){
 }
 
 function renderSummaryTable(byState){
-  // create a styled table using full width of side panel (not cramped)
   const rows = Object.entries(byState).map(([state,v])=> ({state, cases:v.cases||0, population: v.population||0, density:v.density||0, per100k: v.per100k||0}));
-  if(!rows.length) return;
+  if(!rows.length) {
+    const container = document.getElementById('summaryTableContainer');
+    if(container) container.innerText = 'No data for selection';
+    return;
+  }
   rows.sort((a,b)=> b.cases - a.cases);
   const highest = rows[0];
   const lowest = rows[rows.length-1];
@@ -412,5 +404,4 @@ function renderSummaryTable(byState){
 }
 
 document.addEventListener('DOMContentLoaded', init);
-
 
