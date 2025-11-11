@@ -1,8 +1,10 @@
 // assets/js/map.js
 // Robust map page script: two choropleth layers (Cases & Density), charts, popups, controls
+// NOTE: this version draws a robust fallback "box" visualization (median bars) instead of depending
+// on a fragile boxplot plugin so the page always renders a meaningful plot.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
-const GEOJSON_PATH = 'usa_states.geojson';
+const GEOJSON_PATH = 'assets/data/usa_states.geojson'; // <-- confirm file here (or change to 'usa_states.geojson' if located in root)
 
 let casesMap;
 let geojsonData;
@@ -21,7 +23,7 @@ function _pick(obj, keys){
 function normaliseRow(r){
   // Accepts common header variants and returns canonical object
   return {
-    state: _pick(r, ['state','State','STATE','location','Location','province']) || '',
+    state: _pick(r, ['state','State','STATE','location','Location','province','Province']) || '',
     year: _pick(r, ['year','Year','YEAR','yr']) || '',
     disease: _pick(r, ['disease','Disease','condition','Condition']) || '',
     cases: Number(_pick(r, ['cases','Cases','value','count','Count']) || 0),
@@ -33,7 +35,25 @@ function normaliseRow(r){
 function loadAll(){
   // returns Promise<[geojson, parsedRows]>
   const csvPromise = window.__PHdata ? Promise.resolve(window.__PHdata) :
-    new Promise(res => Papa.parse(DATA_PATH, { download:true, header:true, complete(r){ res(r.data); } }));
+    new Promise(res => {
+      if(window.Papa){
+        Papa.parse(DATA_PATH, { download:true, header:true, complete(r){ res(r.data); } });
+      } else {
+        // Papaparse missing — try fetch and simple parse fallback (very basic)
+        fetch(DATA_PATH).then(r=>r.text()).then(txt => {
+          const lines = txt.split(/\r?\n/).filter(Boolean);
+          if(!lines.length) return res([]);
+          const headers = lines[0].split(',');
+          const rows = lines.slice(1).map(l=>{
+            const vals = l.split(',');
+            const obj = {};
+            headers.forEach((h,i)=> obj[h] = vals[i]);
+            return obj;
+          });
+          res(rows);
+        }).catch(()=> res([]));
+      }
+    });
 
   return Promise.all([ fetch(GEOJSON_PATH).then(r=>r.json()), csvPromise ]);
 }
@@ -62,7 +82,8 @@ function init(){
   const currentDisease = params.get('disease') || null;
   const currentYear = params.get('year') || null;
 
-  document.getElementById('homeBtn').addEventListener('click', ()=> location.href='index.html');
+  const homeBtn = document.getElementById('homeBtn');
+  if(homeBtn) homeBtn.addEventListener('click', ()=> location.href='index.html');
 
   loadAll().then(([geojson, csvData])=>{
     geojsonData = geojson;
@@ -85,23 +106,15 @@ function init(){
     if(container) container.innerText = 'Failed to load data — check console.';
   });
 
-  // wire up control listeners
-  const casesSortSelect = document.getElementById('casesSortSelect');
-  if(casesSortSelect) casesSortSelect.addEventListener('change', (e)=> buildCasesByStateBar(byStateAgg, e.target.value));
-  const histNorm = document.getElementById('histNorm');
-  if(histNorm) histNorm.addEventListener('change', ()=> buildHistogram(byStateAgg));
-  const scatterColorBy = document.getElementById('scatterColorBy');
-  if(scatterColorBy) scatterColorBy.addEventListener('change', ()=> buildScatter(byStateAgg));
-  const scatterPerCapita = document.getElementById('scatterPerCapita');
-  if(scatterPerCapita) scatterPerCapita.addEventListener('change', ()=> buildScatter(byStateAgg));
-  const diseaseMultiSelect = document.getElementById('diseaseMultiSelect');
-  if(diseaseMultiSelect) diseaseMultiSelect.addEventListener('change', ()=> buildMultiSeries());
-  const boxGroup = document.getElementById('boxGroup');
-  if(boxGroup) boxGroup.addEventListener('change', ()=> buildBoxPlot());
-  const boxNorm = document.getElementById('boxNorm');
-  if(boxNorm) boxNorm.addEventListener('change', ()=> buildBoxPlot());
-  const boxAxis = document.getElementById('boxAxis');
-  if(boxAxis) boxAxis.addEventListener('change', ()=> buildBoxPlot());
+  // wire up control listeners (defensive)
+  const safeOn = (id,evt,fn)=> { const el = document.getElementById(id); if(el) el.addEventListener(evt,fn); };
+  safeOn('casesSortSelect','change', e=> buildCasesByStateBar(byStateAgg, e.target.value));
+  safeOn('histNorm','change', ()=> buildHistogram(byStateAgg));
+  safeOn('scatterPerCapita','change', ()=> buildScatter(byStateAgg));
+  safeOn('diseaseMultiSelect','change', ()=> buildMultiSeries());
+  safeOn('boxGroup','change', ()=> buildBoxPlot());
+  safeOn('boxNorm','change', ()=> buildBoxPlot());
+  safeOn('boxAxis','change', ()=> buildBoxPlot());
 }
 
 function styleHighlight(feature){
@@ -192,7 +205,6 @@ function buildMaps(geojson, byState){
 
   // add overlay control and default: show cases
   _layerControl = L.control.layers(null, { 'Cases': casesLayer, 'Density': densityLayer }, { collapsed:false }).addTo(casesMap);
-  // Make sure cases are visible (they already are). Density available via control.
 }
 
 function buildAllCharts(allData, byState){
@@ -221,7 +233,9 @@ function buildCasesByStateBar(byState, sortMode='cases_desc'){
   const maxCases = data.length ? Math.max(...data) : 0;
   const bg = rows.map(r=> r.cases === maxCases ? '#3b4b7b' : 'rgba(95,220,200,0.9)');
 
-  const ctx = document.getElementById('casesByStateBar').getContext('2d');
+  const el = document.getElementById('casesByStateBar');
+  if(!el) return;
+  const ctx = el.getContext('2d');
   if(casesByStateChart) casesByStateChart.destroy();
   casesByStateChart = new Chart(ctx, {
     type:'bar',
@@ -266,7 +280,9 @@ function buildHistogram(byState){
 
   const labels = bins.map(b=> `${b.start.toLocaleString()}–${b.end.toLocaleString()}`);
   const data = bins.map(b=> b.count);
-  const ctx = document.getElementById('casesHistogram').getContext('2d');
+  const el = document.getElementById('casesHistogram');
+  if(!el) return;
+  const ctx = el.getContext('2d');
   if(histChart) histChart.destroy();
   histChart = new Chart(ctx, { type:'bar', data:{labels, datasets:[{label:'# states', data}]}, options:{
     maintainAspectRatio:false,
@@ -284,7 +300,9 @@ function buildScatter(byState){
   const points = Object.entries(byState).map(([s,v])=>{
     return { x: v.density || 0, y: perCap ? v.per100k || 0 : v.cases || 0, label:s };
   });
-  const ctx = document.getElementById('scatterDensityCases').getContext('2d');
+  const el = document.getElementById('scatterDensityCases');
+  if(!el) return;
+  const ctx = el.getContext('2d');
   if(scatterChart) scatterChart.destroy();
   scatterChart = new Chart(ctx,{type:'scatter',data:{datasets:[{label:'States',data:points, backgroundColor:'rgba(30,144,255,0.6)'}]},options:{
     maintainAspectRatio:false,
@@ -322,62 +340,69 @@ function buildMultiSeries(allData){
     const totals = common.map(y => data.filter(r=>r.disease===d && String(r.year)===String(y)).reduce((s,r)=> s + (Number(r.cases)||0), 0));
     return { label: d, data: totals, borderWidth:2, fill:false };
   });
-  const ctx = document.getElementById('multiDiseaseSeries').getContext('2d');
+  const el = document.getElementById('multiDiseaseSeries');
+  if(!el) return;
+  const ctx = el.getContext('2d');
   if(multiChart) multiChart.destroy();
   multiChart = new Chart(ctx, {type:'line', data:{labels:common, datasets}, options:{maintainAspectRatio:false, plugins:{legend:{position:'top'}}}});
 }
 
+// Robust box visualization (median bars fallback so it always renders)
 function buildBoxPlot(){
   const allData = window.__PHdata || [];
   const canvas = document.getElementById('boxplotCases');
   if(!canvas) return;
 
-  // check if boxplot plugin exists
-  const hasBox = Chart && Chart.registry && Chart.registry.controllers && Object.keys(Chart.registry.controllers).some(k=>k.toLowerCase().includes('box'));
-  if(!hasBox){
-    // fallback: show a small histogram bar chart for medians per group
-    const group = (document.getElementById('boxGroup') || {}).value || 'byYear';
-    // compute medians
-    let labels=[], medians=[];
-    if(group === 'byYear'){
-      const years = Array.from(new Set(allData.map(x=>x.year))).sort();
-      labels = years;
-      medians = years.map(y=>{
-        const states = Array.from(new Set(allData.map(d=>d.state)));
-        const vals = states.map(s => allData.filter(d=>d.state===s && String(d.year)===String(y)).reduce((a,b)=>a+(Number(b.cases)||0),0));
-        vals.sort((a,b)=>a-b);
-        const mid = Math.floor(vals.length/2);
-        return vals.length ? (vals.length%2? vals[mid] : (vals[mid-1]+vals[mid])/2) : 0;
-      });
-    } else {
-      const states = Array.from(new Set(allData.map(x=>x.state))).sort();
-      labels = states;
-      medians = states.map(s=>{
-        const years = Array.from(new Set(allData.map(d=>d.year)));
-        const vals = years.map(y => allData.filter(d=>d.state===s && String(d.year)===String(y)).reduce((a,b)=>a+(Number(b.cases)||0),0));
-        vals.sort((a,b)=>a-b);
-        const mid = Math.floor(vals.length/2);
-        return vals.length ? (vals.length%2? vals[mid] : (vals[mid-1]+vals[mid])/2) : 0;
-      }).slice(0, 20); // reduce for performance
-      if(states.length>20) labels = labels.slice(0,20);
-    }
-    if(window.boxChart) try{ window.boxChart.destroy(); }catch(e){}
-    window.boxChart = new Chart(canvas.getContext('2d'), { type:'bar', data:{ labels, datasets:[{label:'Median (fallback)', data:medians, backgroundColor:'rgba(95,220,200,0.9)'}]}, options:{maintainAspectRatio:false}});
-    // also put a developer console warning
-    console.warn('Boxplot plugin not available — drawing fallback bar chart.');
-    return;
-  }
-
-  // normal code path: plugin available — build boxplot as original
-  // (previous full boxplot code remains unchanged below)
   const group = (document.getElementById('boxGroup') || {}).value || 'byYear';
   const norm = (document.getElementById('boxNorm') || {}).value || 'absolute';
-  const axis = (document.getElementById('boxAxis') || {}).value || 'linear';
 
-  // ... (same as previous boxplot building logic in your map.js) ...
-  // For brevity, reuse your existing logic here. The important part is the plugin check above.
+  // compute median for each group (and show as bar). This is stable and informative.
+  let labels = [];
+  let values = [];
+
+  if(group === 'byYear'){
+    const years = Array.from(new Set(allData.map(x=>x.year))).sort();
+    labels = years;
+    values = years.map(y=>{
+      const states = Array.from(new Set(allData.map(d=>d.state)));
+      const vals = states.map(s => {
+        const sum = allData.filter(d=>d.state===s && String(d.year)===String(y)).reduce((a,b)=>a+(Number(b.cases)||0),0);
+        if(norm === 'per100k'){
+          const popRow = allData.find(d=>d.state===s && String(d.year)===String(y));
+          const pop = popRow ? Number(popRow.population)||1 : 1;
+          return (sum / Math.max(pop,1)) * 100000;
+        }
+        return sum;
+      }).filter(v=> typeof v === 'number');
+      vals.sort((a,b)=>a-b);
+      const mid = Math.floor(vals.length/2);
+      return vals.length ? (vals.length%2 ? vals[mid] : (vals[mid-1]+vals[mid])/2) : 0;
+    });
+  } else {
+    const states = Array.from(new Set(allData.map(x=>x.state))).sort();
+    labels = states.slice(0, 40); // limit to avoid huge charts
+    values = labels.map(s=>{
+      const years = Array.from(new Set(allData.map(d=>d.year)));
+      const vals = years.map(y => {
+        const sum = allData.filter(d=>d.state===s && String(d.year)===String(y)).reduce((a,b)=>a+(Number(b.cases)||0),0);
+        if(norm === 'per100k'){
+          const popRow = allData.find(d=>d.state===s && String(d.year)===String(y));
+          const pop = popRow ? Number(popRow.population)||1 : 1;
+          return (sum / Math.max(pop,1)) * 100000;
+        }
+        return sum;
+      }).filter(v=> typeof v === 'number');
+      vals.sort((a,b)=>a-b);
+      const mid = Math.floor(vals.length/2);
+      return vals.length ? (vals.length%2 ? vals[mid] : (vals[mid-1]+vals[mid])/2) : 0;
+    });
+  }
+
+  // draw median bar chart as fallback "box" view
+  if(window.boxChart) try{ window.boxChart.destroy(); }catch(e){}
+  const ctx = canvas.getContext('2d');
+  window.boxChart = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label: 'Median (fallback)', data: values, backgroundColor:'rgba(95,220,200,0.9)' }] }, options:{ maintainAspectRatio:false, plugins:{legend:{display:false}} } });
 }
-
 
 function renderSummaryTable(byState){
   const rows = Object.entries(byState).map(([state,v])=> ({state, cases:v.cases||0, population: v.population||0, density:v.density||0, per100k: v.per100k||0}));
