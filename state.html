@@ -16,7 +16,7 @@
         <a href="index.html" class="btn">Home</a>
       </div>
       <div>
-        <button id="themeToggleState" class="btn icon-btn"><i id="themeIconState" class="fa fa-moon"></i></button>
+        <button id="themeToggleState" class="btn icon-btn"><i id="themeIconState">🌙</i></button>
       </div>
     </div>
   </div>
@@ -42,56 +42,37 @@
 
     <section class="charts-grid">
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3>Plot A — Time series (state)</h3>
-          <div>
-            <label>Norm
-              <select id="chartA_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
-            </label>
-            <label>Axis
-              <select id="chartA_axis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
-            </label>
-          </div>
-        </div>
+        <h3>Plot A — Time Series</h3>
+        <select id="chartA_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
+        <select id="chartA_axis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
         <div class="chart-wrapper"><canvas id="chartA_stateTS"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot B — Cases per 100k (state)</h3>
+        <h3>Plot B — Cases per 100k</h3>
         <div class="chart-wrapper"><canvas id="chartB_statePer100k"></canvas></div>
       </div>
 
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3>Plot C — Disease comparison</h3>
-          <div>
-            <label>Diseases
-              <select id="stateDiseaseSelect" class="select" multiple size="3"></select>
-            </label>
-            <label>Norm
-              <select id="chartC_norm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
-            </label>
-          </div>
-        </div>
+        <h3>Plot C — Disease Comparison</h3>
+        <select id="stateDiseaseSelect" class="select" multiple size="3"></select>
         <div class="chart-wrapper"><canvas id="chartC_stateCompare"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot D — Scatter (ad-hoc)</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-          <label>X <select id="stateScatterX" class="select"><option value="population">Population</option><option value="population_density">Density</option><option value="year">Year</option></select></label>
-          <label>Y <select id="stateScatterY" class="select"><option value="cases">Cases</option><option value="cases_per100k">Cases per 100k</option></select></label>
-        </div>
+        <h3>Plot D — Scatter</h3>
+        <select id="stateScatterX" class="select"><option value="population">Population</option><option value="population_density">Density</option><option value="year">Year</option></select>
+        <select id="stateScatterY" class="select"><option value="cases">Cases</option><option value="cases_per100k">Cases per 100k</option></select>
         <div class="chart-wrapper"><canvas id="chartD_stateScatter"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot E — Sunburst (Year → Disease → Cases)</h3>
+        <h3>Plot E — Sunburst</h3>
         <div class="chart-wrapper"><canvas id="chartE_stateSunburst"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Plot F — Heatmap (Disease × Year)</h3>
+        <h3>Plot F — Heatmap</h3>
         <div class="chart-wrapper"><canvas id="chartF_stateHeatmap"></canvas></div>
       </div>
     </section>
@@ -99,17 +80,12 @@
 
   <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
 
-  <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- chart plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
-
-  <!-- app -->
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/charts.js"></script>
   <script src="assets/js/state.js"></script>
