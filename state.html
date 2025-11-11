@@ -80,14 +80,22 @@
 
   <footer class="site-footer"><div class="container">© Public Health Dashboard</div></footer>
 
+    <!-- CSV + Leaflet (keep) -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Chart core (explicit compatible build/version) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <!-- Chart plugins (must load AFTER Chart core) -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
+
+  <!-- app scripts (helpers first, then state.js) -->
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/charts.js"></script>
   <script src="assets/js/state.js"></script>
+
 </body>
 </html>
