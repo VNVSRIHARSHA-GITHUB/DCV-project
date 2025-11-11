@@ -4,7 +4,7 @@
 // on a fragile boxplot plugin so the page always renders a meaningful plot.
 
 const DATA_PATH = 'assets/data/complete_disease_data.csv';
-const GEOJSON_PATH = 'assets/data/usa_states.geojson'; // <-- confirm file here (or change to 'usa_states.geojson' if located in root)
+const GEOJSON_PATH = 'usa_states.geojson'; // <-- confirm file here (or change to 'usa_states.geojson' if located in root)
 
 let casesMap;
 let geojsonData;
