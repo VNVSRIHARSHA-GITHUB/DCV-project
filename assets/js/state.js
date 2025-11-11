@@ -278,48 +278,109 @@ function drawStateScatter(allRows, Qobj){
     window.chartD = new Chart(canvas.getContext('2d'), { type:'scatter', data:{ datasets:[{ label:'Points', data: pts, backgroundColor:'rgba(95,220,200,0.9)' }]}, options:{ maintainAspectRatio:false, scales:{ x:{ title:{ display:true, text: x }}, y:{ title:{ display:true, text: ySel }}} }});
   }catch(e){ console.error('drawStateScatter failed', e); }
 }
-
 function drawSunburst(allRows, Qobj){
   try{
-    const canvas = el('chartE_stateSunburst');
-    if(!canvas || !window.Chart || !Chart.controllers || !Chart.elements) return;
+    const canvas = document.getElementById('chartE_stateSunburst');
+    if(!canvas) return;
+
+    // check for sunburst controller
+    const hasSun = Chart && Chart.registry && Chart.registry.controllers && Object.keys(Chart.registry.controllers).some(k=>k.toLowerCase().includes('sunburst'));
+    // build data
     const byYear = {};
     allRows.filter(r=> r.state === Qobj.state).forEach(r=>{
       const year = r.year || 'Unknown';
       byYear[year] = byYear[year] || {};
       byYear[year][r.disease || 'Unknown'] = (byYear[year][r.disease] || 0) + (Number(r.cases)||0);
     });
-    const children = Object.entries(byYear).map(([year, diseases])=> ({ name: year, children: Object.entries(diseases).map(([d,v])=> ({ name: d, value: v })) }));
+
+    if(!hasSun){
+      // fallback: create a simple stacked bar (years on x, top 5 diseases)
+      const years = Object.keys(byYear).sort();
+      const allDiseases = {};
+      for(const y of years) for(const d of Object.keys(byYear[y])) allDiseases[d] = (allDiseases[d]||0) + byYear[y][d];
+      const topDiseases = Object.entries(allDiseases).sort((a,b)=>b[1]-a[1]).slice(0,5).map(x=>x[0]);
+      const datasets = topDiseases.map((d,i)=> ({
+        label:d,
+        data: years.map(y => byYear[y][d] || 0),
+        backgroundColor: `rgba(${50+i*30}, ${130+i*20}, ${200-i*20}, 0.7)`
+      }));
+      if(window.chartE) try{ window.chartE.destroy(); }catch(e){}
+      window.chartE = new Chart(canvas.getContext('2d'), { type:'bar', data:{ labels: years, datasets }, options:{ maintainAspectRatio:false, plugins:{title:{display:true,text:'Sunburst fallback: top diseases over years'}} }});
+      console.warn('Sunburst plugin missing — drew stacked bar fallback.');
+      return;
+    }
+
+    // plugin available -> draw the sunburst
+    const children = Object.entries(byYear).map(([year, diseases]) => ({ name: year, children: Object.entries(diseases).map(([d,v])=>({name:d, value:v})) }));
     const tree = { name: Q.state, children };
     if(window.chartE) try{ window.chartE.destroy(); }catch(e){}
-    window.chartE = new Chart(canvas.getContext('2d'), { type:'sunburst', data:{ datasets:[{ tree, key:'value', groups:['name'], borderWidth:1, borderColor:'#fff' }]}, options:{ maintainAspectRatio:false }});
+    window.chartE = new Chart(canvas.getContext('2d'), { type:'sunburst', data:{datasets:[{tree, key:'value', groups:['name'], borderWidth:1, borderColor:'#fff'}]}, options:{maintainAspectRatio:false}});
   }catch(e){ console.error('drawSunburst failed', e); }
 }
 
+
 function drawHeatmap(allRows, Qobj){
   try{
-    const canvas = el('chartF_stateHeatmap');
+    const canvas = document.getElementById('chartF_stateHeatmap');
     if(!canvas) return;
+
+    const hasMatrix = Chart && Chart.registry && Chart.registry.controllers && Object.keys(Chart.registry.controllers).some(k=>k.toLowerCase().includes('matrix'));
     const diseases = Array.from(new Set(allRows.filter(r=> r.state === Qobj.state).map(r=> r.disease))).sort();
     const years = Array.from(new Set(allRows.filter(r=> r.state === Qobj.state).map(r=> r.year))).sort();
+
+    if(!hasMatrix){
+      // fallback: create a small HTML table inside container adjacent to canvas
+      const container = canvas.parentElement;
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+      const thead = document.createElement('thead');
+      const headRow = document.createElement('tr');
+      headRow.appendChild(document.createElement('th')); // empty corner
+      years.forEach(y=> { const th = document.createElement('th'); th.innerText = y; th.style.border='1px solid #eee'; th.style.padding='6px'; headRow.appendChild(th); });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      diseases.forEach(d=>{
+        const tr = document.createElement('tr');
+        const th = document.createElement('th'); th.innerText = d; th.style.padding='6px'; th.style.border='1px solid #eee'; tr.appendChild(th);
+        years.forEach(y=>{
+          const td = document.createElement('td'); td.style.padding='6px'; td.style.border='1px solid #f7f7f7';
+          const v = allRows.filter(r=> r.state===Qobj.state && r.disease===d && r.year===y).reduce((s,r)=> s + (Number(r.cases)||0),0);
+          td.innerText = v ? v.toLocaleString() : '-';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      // clear canvas and insert table
+      canvas.style.display = 'none';
+      const existing = container.querySelector('.heatmap-fallback');
+      if(existing) existing.remove();
+      const wrap = document.createElement('div');
+      wrap.className = 'heatmap-fallback';
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+      console.warn('Matrix plugin missing — inserted table fallback for heatmap.');
+      return;
+    }
+
+    // normal matrix plugin path
     const data = [];
-    diseases.forEach(d => years.forEach(y => {
-      const v = allRows.filter(r=> r.state === Qobj.state && r.disease === d && r.year === y).reduce((s,r)=> s + (Number(r.cases)||0), 0);
-      data.push({ x: y, y: d, v });
+    diseases.forEach((d,i)=> years.forEach((y,j)=> {
+      const v = allRows.filter(r=> r.state===Qobj.state && r.disease===d && r.year===y).reduce((s,r)=> s + (Number(r.cases)||0),0);
+      data.push({x: y, y: d, v});
     }));
     if(window.chartF) try{ window.chartF.destroy(); }catch(e){}
     window.chartF = new Chart(canvas.getContext('2d'), {
       type:'matrix',
-      data:{ datasets:[{ label:'Cases', data, backgroundColor: ctx => {
+      data:{datasets:[{label:'Cases', data, backgroundColor: ctx => {
         const val = ctx.raw.v || 0; const alpha = Math.min(0.95, val / 100000); return `rgba(30,144,255,${alpha})`;
       }, width: ({chart}) => (chart.chartArea.width / Math.max(1, years.length)) - 6, height: ({chart}) => (chart.chartArea.height / Math.max(1, diseases.length)) - 6 }]},
-      options:{ maintainAspectRatio:false, scales:{ x:{ type:'category', labels: years, title:{ display:true, text:'Year' } }, y:{ type:'category', labels: diseases, title:{ display:true, text:'Disease' } } } }
+      options:{ maintainAspectRatio:false, scales:{ x:{ type:'category', labels: years, title:{ display:true, text:'Year' } }, y:{ type:'category', labels: diseases }}}
     });
   }catch(e){ console.error('drawHeatmap failed', e); }
 }
 
-// init on DOM ready
-document.addEventListener('DOMContentLoaded', function(){ init(); });
 
 
 
