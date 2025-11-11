@@ -18,110 +18,73 @@
           <div class="app-sub">National Map</div>
         </div>
       </div>
-
       <div class="controls">
         <button id="homeBtn" class="btn"><i class="fa fa-home"></i> Home</button>
-        <button id="themeToggleMap" class="btn icon-btn"><i id="themeIconMap" class="fa fa-moon"></i></button>
+        <button id="themeToggleMap" class="btn icon-btn"><i id="themeIconMap">🌙</i></button>
       </div>
     </div>
   </header>
 
   <main class="container page">
-    <!-- top maps -->
     <section class="map-row">
       <div class="card map-card">
-        <h3>Choropleth — State cases</h3>
+        <h3>Choropleth — Cases & Density</h3>
         <div id="casesMap" style="height:420px;"></div>
         <div class="small muted" id="mapFooter">Dataset: — · Year: —</div>
       </div>
 
       <aside class="card side-panel right">
-        <h4>At a glance</h4>
-        <div id="summaryPanel">Loading...</div>
+        <h4>Summary Table</h4>
+        <div id="summaryTableContainer">Loading...</div>
       </aside>
     </section>
 
-    <!-- charts row -->
     <section class="charts-grid">
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3>Cases by State — Selected Year</h3>
-          <div>
-            <label>Sort
-              <select id="casesSortSelect" class="select">
-                <option value="cases_desc">Cases ↓</option>
-                <option value="cases_asc">Cases ↑</option>
-                <option value="alpha_asc">A → Z</option>
-                <option value="alpha_desc">Z → A</option>
-                <option value="pop_desc">Population ↓</option>
-                <option value="density_desc">Density ↓</option>
-                <option value="per100k_desc">Per100k ↓</option>
-              </select>
-            </label>
-          </div>
-        </div>
+        <h3>Cases by State</h3>
+        <label>Sort
+          <select id="casesSortSelect" class="select">
+            <option value="cases_desc">Cases ↓</option>
+            <option value="cases_asc">Cases ↑</option>
+            <option value="alpha_asc">A → Z</option>
+            <option value="alpha_desc">Z → A</option>
+          </select>
+        </label>
         <div class="chart-wrapper"><canvas id="casesByStateBar"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Histogram — distribution of state counts (4 bins)</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <label>Norm
-            <select id="histNorm" class="select">
-              <option value="absolute">Absolute</option>
-              <option value="per100k">Per 100k</option>
-            </select>
-          </label>
-        </div>
+        <h3>Histogram (4 bins)</h3>
+        <label>Norm
+          <select id="histNorm" class="select">
+            <option value="absolute">Absolute</option>
+            <option value="per100k">Per 100k</option>
+          </select>
+        </label>
         <div class="chart-wrapper"><canvas id="casesHistogram"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Scatter — Cases vs Population Density</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <label>Color by
-            <select id="scatterColorBy" class="select">
-              <option value="none">None</option>
-              <option value="region">US Region</option>
-            </select>
-          </label>
-          <label><input type="checkbox" id="scatterPerCapita"> Per 100k</label>
-        </div>
+        <h3>Scatter — Cases vs Density</h3>
+        <label><input type="checkbox" id="scatterPerCapita"> Per 100k</label>
         <div class="chart-wrapper"><canvas id="scatterDensityCases"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Multi-disease Time Series — Common years</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <label>Diseases
-            <select id="diseaseMultiSelect" class="select" multiple size="3"></select>
-          </label>
-          <label>Norm
-            <select id="multiNorm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
-          </label>
-        </div>
+        <h3>Multi-Disease Time Series</h3>
+        <select id="diseaseMultiSelect" class="select" multiple size="3"></select>
         <div class="chart-wrapper"><canvas id="multiDiseaseSeries"></canvas></div>
       </div>
 
       <div class="card">
-        <h3>Box plot — Dispersion across states (per year)</h3>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-          <label>Group by
-            <select id="boxGroup" class="select"><option value="byYear">By year (boxes = distribution across states)</option><option value="byState">By state (boxes = distribution across years)</option></select>
-          </label>
-          <label>Norm
-            <select id="boxNorm" class="select"><option value="absolute">Absolute</option><option value="per100k">Per 100k</option></select>
-          </label>
-          <label>Axis
-            <select id="boxAxis" class="select"><option value="linear">Linear</option><option value="log">Log</option></select>
-          </label>
-        </div>
+        <h3>Box Plot — Dispersion Across States</h3>
+        <label>Group by
+          <select id="boxGroup" class="select">
+            <option value="byYear">By Year</option>
+            <option value="byState">By State</option>
+          </select>
+        </label>
         <div class="chart-wrapper"><canvas id="boxplotCases"></canvas></div>
-      </div>
-
-      <div class="card">
-        <h3>Summary Table</h3>
-        <div id="summaryTableContainer" style="overflow:auto"></div>
       </div>
     </section>
   </main>
@@ -132,11 +95,7 @@
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-  <!-- chart plugins -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-boxplot@3.0.0/build/index.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.1.0/dist/chartjs-chart-matrix.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-sunburst@4.2.1/dist/chartjs-chart-sunburst.min.js"></script>
 
   <!-- app scripts -->
   <script src="assets/js/theme.js"></script>
@@ -144,3 +103,4 @@
   <script src="assets/js/map.js"></script>
 </body>
 </html>
+
