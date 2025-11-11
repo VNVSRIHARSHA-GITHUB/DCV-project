@@ -6,13 +6,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="assets/css/style.css" />
+  <!-- Linking the shared style sheet -->
+  <link rel="stylesheet" href="assets/css/style.css" /> 
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner container">
       <div class="brand">
-        <img src="assets/img/logo.jpg" class="logo" alt="logo"/>
+        <!-- Placeholder for logo. Replace with your actual path if needed. -->
+        <img src="https://placehold.co/40x40/1f7fe0/ffffff?text=PHD" class="logo" alt="logo"/>
         <div>
           <div class="app-title">Public Health Dashboard</div>
           <div class="app-sub">Interactive maps & state reports</div>
@@ -27,7 +29,7 @@
           <select id="yearSelect" class="select" disabled></select>
         </label>
         <button id="searchBtn" class="btn primary" disabled>Open Map</button>
-        <button id="openExample" class="btn">Open Example State</button>
+        <button id="openExample" class="btn">Example State</button>
         <button id="themeToggleHeader" class="btn icon-btn" title="Toggle theme">
           <i id="themeIconHeader">🌙</i>
         </button>
@@ -37,23 +39,26 @@
     <div class="header-hero">
       <div class="container hero-text">
         <h1>Health Analytics Across USA & Territories</h1>
-        <p>Interactive state maps • Year-by-year trends • Public health resources</p>
-        <a href="map.html" class="btn ghost">View National Map</a>
+        <p>Explore state-level data on common diseases, track trends, and compare metrics.</p>
+        <a href="map.html" class="btn ghost">View National Map (Current)</a>
       </div>
     </div>
   </header>
 
   <main class="container page">
+    <h2>Data Overview</h2>
     <section class="cards">
       <article class="card">
-        <h3>About U.S. Population</h3>
-        <p>Use the controls in the header to pick a disease and year. Click "Open Map" to explore choropleth maps and state detail pages.</p>
+        <h3>How to Use</h3>
+        <p>Use the controls above to pick a **disease** and **year**. Click **Open Map** to navigate to the national choropleth map. From the map, you can click any state to view its detailed report.</p>
       </article>
 
       <article class="card">
-        <h3>Data sources</h3>
+        <h3>Dataset Scope</h3>
         <ul>
-          <li>CDC WONDER and other public health datasets.</li>
+          <li>**Diseases:** Multiple common reportable conditions.</li>
+          <li>**Geography:** All 50 U.S. states plus territories.</li>
+          <li>**Metrics:** Cases, Population, and calculated Rate per 100k.</li>
         </ul>
       </article>
     </section>
@@ -63,9 +68,11 @@
     <div class="container">© Public Health Dashboard</div>
   </footer>
 
+  <!-- External Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+
+  <!-- Local Scripts -->
   <script src="assets/js/theme.js"></script>
   <script src="assets/js/main.js"></script>
 </body>
 </html>
-
